@@ -7,7 +7,6 @@ module
 
 public import Mathlib.Analysis.Normed.Group.InfiniteSum
 public import Mathlib.MeasureTheory.VectorMeasure.Basic
--- public import Mathlib.MeasureTheory.MeasurableSpace.Subpartition
 public import Mathlib.Order.Partition.Finpartition
 public import Mathlib.Tactic
 
@@ -75,7 +74,7 @@ variable {X : Type*} [MeasurableSpace X] (f : Set X → ℝ≥0∞)
 
 open Classical in
 /-- If `s` is measurable then `preVariation s f` is the supremum over partitions `P` of `s` of the
-quantity `∑ p ∈ P, f p`. If `s` is not measurable then it is set to `0`. -/
+quantity `∑ p ∈ P.parts, f p`. If `s` is not measurable then it is set to `0`. -/
 noncomputable def preVariation (s : Set X) : ℝ≥0∞ :=
   if h : MeasurableSet s then
     ⨆ (P : Finpartition (⟨s, h⟩ : Subtype MeasurableSet)), ∑ p ∈ P.parts, f p
@@ -111,9 +110,9 @@ lemma empty : preVariation f ∅ = 0 := by simp [preVariation]
 /-- `preVariation` is monotone in terms of the (measurable) set. -/
 lemma mono {s₁ s₂ : Set X} (hs₂ : MeasurableSet s₂) (h : s₁ ⊆ s₂) :
     preVariation f s₁ ≤ preVariation f s₂ := by
-  -- Given any partition P of s₁, we observe that a partition of s₂ is given by adding s₂ \ s₁ to P.
-  -- This, since preVariation is defined as a sup, gives the required inequality.
-  sorry
+  by_cases hs₁ : MeasurableSet s₁
+  · sorry
+  · simp [preVariation, hs₁]
 
 -- lemma exists_isSubpartition_sum_gt {s : Set X} (hs : MeasurableSet s) {a : ℝ≥0∞}
 --     (ha : a < preVariation f s) : ∃ P, IsSubpartition s P ∧ a < ∑ p ∈ P, f p := by
@@ -122,8 +121,14 @@ lemma mono {s₁ s₂ : Set X} (hs₂ : MeasurableSet s₂) (h : s₁ ⊆ s₂) 
 lemma exists_isSubpartition_sum_gt {s : Set X} (hs : MeasurableSet s) {a : ℝ≥0∞}
     (ha : a < preVariation f s) : ∃ P : Finpartition (⟨s, hs⟩ : Subtype MeasurableSet),
     a < ∑ p ∈ P.parts, f p := by
-  -- By definition of supremum
-  sorry
+  simp_all [preVariation, lt_iSup_iff]
+
+-- Move to Mathlib/Order/Partition/Finpartition.lean
+instance _root_.Finpartition.instNonempty {α : Type*} [Lattice α] [OrderBot α] (a : α) :
+    Nonempty (Finpartition a) := by
+  by_cases h : a = ⊥
+  · rw [h]; exact ⟨Finpartition.empty α⟩
+  · exact ⟨Finpartition.indiscrete h⟩
 
 -- lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNReal} (hε : 0 < ε)
 --     (h : preVariation f s ≠ ⊤) : ∃ P, IsSubpartition s P ∧ preVariation f s ≤ ∑ p ∈ P, f p + ε := by
@@ -167,9 +172,7 @@ lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNRe
         apply (ENNReal.add_le_add_iff_right coe_ne_top).mpr
         grind
       _ ≤ ∑ p ∈ P.parts, f p + ε := by gcongr
-  · rw [hw]
-    -- Take any partition, sum of non-negative is always non-negative
-    sorry
+  · simp [*]
 
 -- lemma sum_le {s : Set X} (hs : MeasurableSet s) {P : Finset (Set X)}
 --     (hP : IsSubpartition s P) : ∑ p ∈ P, f p ≤ preVariation f s := by
@@ -177,9 +180,8 @@ lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNRe
 
 lemma sum_le {s : Set X} (hs : MeasurableSet s) {P : Finpartition (⟨s, hs⟩ : Subtype MeasurableSet)}
     : ∑ p ∈ P.parts, f p ≤ preVariation f s := by
-  simp [preVariation, hs]
-  -- Sup is ge one element of the sup
-  sorry
+  simp only [preVariation, hs, ↓reduceDIte]
+  exact le_iSup (fun (Q : Finpartition (⟨s, hs⟩ : Subtype MeasurableSet)) => ∑ p ∈ Q.parts, f ↑p) P
 
 /-- A set function is subadditive if the value assigned to the union of disjoint sets is bounded
 above by the sum of the values assigned to the individual sets. -/
@@ -335,7 +337,7 @@ lemma isSubadditive_enorm_vectorMeasure (μ : VectorMeasure X V) : IsSubadditive
 noncomputable def ennrealVariation (μ : VectorMeasure X V) : VectorMeasure X ℝ≥0∞ where
   measureOf' := preVariation (‖μ ·‖ₑ)
   empty' := preVariation.empty (‖μ ·‖ₑ)
-  not_measurable' _ h := if_neg h
+  not_measurable' _ h := by simp [preVariation, h]
   m_iUnion' := iUnion (‖μ ·‖ₑ) (isSubadditive_enorm_vectorMeasure μ) (by simp)
 
 /-- The variation of a `VectorMeasure` as a `Measure`. -/
