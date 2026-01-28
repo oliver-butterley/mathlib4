@@ -197,17 +197,17 @@ def _root_.Finpartition.ofPairwiseDisjoint {α : Type*} [DistribLattice α] [Ord
     [DecidableEq α] (T : Finset α) (hT : (T : Set α).PairwiseDisjoint id) :
     Finpartition (T.sup id) where
   parts := T.erase ⊥
-  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun a ha b hb hab =>
+  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun _ ha _ hb hab =>
     hT (Finset.erase_subset _ _ ha) (Finset.erase_subset _ _ hb) hab
   sup_parts := Finset.sup_erase_bot T
   bot_notMem := Finset.notMem_erase _ _
 ---
 
+open Classical in
 lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s))
     (P : ∀ (i : ℕ), Finpartition (⟨s i, hs i⟩ : Subtype MeasurableSet)) (n : ℕ) :
     ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p ≤ preVariation f (⋃ i, s i) := by
-  classical
   -- Step 1: Create the coarse partition Q' with parts {⟨s 0, hs 0⟩, ..., ⟨s (n-1), hs (n-1)⟩}
   let S : Finset (Subtype MeasurableSet) :=
     (Finset.range n).image fun i => ⟨s i, hs i⟩
@@ -221,9 +221,10 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     exact Set.disjoint_iff_inter_eq_empty.mp (hs' hne)
   let Q' := Finpartition.ofPairwiseDisjoint S hS_disjoint
   -- Step 2: S.sup id = ⟨⋃ i ∈ range n, s i, ...⟩
-  have sup_eq : ∀ m, ↑((Finset.range m).sup fun i => (⟨s i, hs i⟩ : Subtype MeasurableSet)) =
+  have sup_eq (m : ℕ) : ((Finset.range m).sup fun i => (⟨s i, hs i⟩ : Subtype MeasurableSet)) =
       ⋃ i ∈ Finset.range m, s i := by
-    intro m
+
+
     induction m with
     | zero => simp
     | succ k ih =>
@@ -258,7 +259,7 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     exact ⟨i, hi, rfl⟩
   -- let hbind_fn : ∀ p ∈ Q'.parts, Finpartition p := fun p hp =>
   --   (hS_mem p hp).choose_spec.2 ▸ P (hS_mem p hp).choose
-  let Q := Q'.bind (fun p ↦ ?)
+  let Q := Q'.bind sorry
   -- Step 4: Extend Q to a partition of ⋃ i, s i using extendSup
   have hQ_le : S.sup id ≤ ⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ := by
     rw [hS_sup]
