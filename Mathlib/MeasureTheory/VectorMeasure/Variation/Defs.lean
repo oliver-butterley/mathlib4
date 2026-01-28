@@ -161,21 +161,33 @@ lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNRe
       _ ≤ ∑ p ∈ P.parts, f p + ε := by gcongr
   · simp [*]
 
+open Finpartition
 -- TODO: move to Finpartition file
 /-- Extend a partition of `a` to a partition of `b` when `a ≤ b`, by adding `b \ a` as a `part`. -/
-noncomputable def _root_.Finpartition.extendSup {α : Type*} [GeneralizedBooleanAlgebra α] {a b : α}
-    (P : Finpartition a) (hab : a ≤ b) : Finpartition b := by
-  classical
-  exact if hr : b \ a = ⊥ then (le_antisymm (sdiff_eq_bot_iff.mp hr) hab) ▸ P
+def _root_.Finpartition.extendOfLE {α : Type*} [GeneralizedBooleanAlgebra α]
+    [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a ≤ b) : Finpartition b :=
+  if hr : b \ a = ⊥ then (le_antisymm (sdiff_eq_bot_iff.mp hr) hab) ▸ P
     else P.extend hr disjoint_sdiff_self_right (sup_sdiff_cancel_right hab)
 
-lemma _root_.Finpartition.parts_subset_extendSup {α : Type*} [GeneralizedBooleanAlgebra α]
-    {a b : α} (P : Finpartition a) (hab : a ≤ b) : P.parts ⊆ (P.extendSup hab).parts := by
-  classical
-  simp only [Finpartition.extendSup]
+-- not needed for this work
+lemma _root_.Finpartition.parts_extendOfLE_of_eq {α : Type*} [GeneralizedBooleanAlgebra α]
+    [DecidableEq α] {a : α} (P : Finpartition a) :
+    (P.extendOfLE (a := a) (b := a) (by rfl)).parts = P.parts := by simp [extendOfLE]
+
+-- not needed for this work
+lemma _root_.Finpartition.parts_extendOfLE_of_lt {α : Type*} [GeneralizedBooleanAlgebra α]
+    [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a < b) :
+    (P.extendOfLE (le_of_lt hab)).parts = insert (b \ a) P.parts := by
+  simp [extendOfLE, Std.not_le_of_gt hab]
+
+lemma _root_.Finpartition.parts_subset_extendOfLE {α : Type*} [GeneralizedBooleanAlgebra α]
+    [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a ≤ b) :
+    P.parts ⊆ (P.extendOfLE hab).parts := by
+  simp only [Finpartition.extendOfLE]
   split_ifs with hr
   · cases le_antisymm (sdiff_eq_bot_iff.mp hr) hab; rfl
   · exact Finset.subset_insert _ _
+---
 
 -- TODO: move to Finpartition file
 /-- Construct a `Finpartition` of `T.sup id` from a finset `T` of pairwise disjoint elements.
@@ -244,9 +256,9 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     simp only [S, Finset.mem_image] at this
     obtain ⟨i, hi, rfl⟩ := this
     exact ⟨i, hi, rfl⟩
-  let hbind_fn : ∀ p ∈ Q'.parts, Finpartition p := fun p hp =>
-    (hS_mem p hp).choose_spec.2 ▸ P (hS_mem p hp).choose
-  let Q := Q'.bind hbind_fn
+  -- let hbind_fn : ∀ p ∈ Q'.parts, Finpartition p := fun p hp =>
+  --   (hS_mem p hp).choose_spec.2 ▸ P (hS_mem p hp).choose
+  let Q := Q'.bind (fun p ↦ ?)
   -- Step 4: Extend Q to a partition of ⋃ i, s i using extendSup
   have hQ_le : S.sup id ≤ ⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ := by
     rw [hS_sup]
