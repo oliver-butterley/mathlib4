@@ -169,12 +169,10 @@ def _root_.Finpartition.extendOfLE {α : Type*} [GeneralizedBooleanAlgebra α]
   if hr : b \ a = ⊥ then (le_antisymm (sdiff_eq_bot_iff.mp hr) hab) ▸ P
     else P.extend hr disjoint_sdiff_self_right (sup_sdiff_cancel_right hab)
 
--- not needed for this work
 lemma _root_.Finpartition.parts_extendOfLE_of_eq {α : Type*} [GeneralizedBooleanAlgebra α]
     [DecidableEq α] {a : α} (P : Finpartition a) :
     (P.extendOfLE (a := a) (b := a) (by rfl)).parts = P.parts := by simp [extendOfLE]
 
--- not needed for this work
 lemma _root_.Finpartition.parts_extendOfLE_of_lt {α : Type*} [GeneralizedBooleanAlgebra α]
     [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a < b) :
     (P.extendOfLE (le_of_lt hab)).parts = insert (b \ a) P.parts := by
@@ -208,19 +206,9 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     (hs' : Pairwise (Disjoint on s))
     (P : ∀ (i : ℕ), Finpartition (⟨s i, hs i⟩ : Subtype MeasurableSet)) (n : ℕ) :
     ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p ≤ preVariation f (⋃ i, s i) := by
-  -- Step 1: Create the coarse partition Q' with parts {⟨s 0, hs 0⟩, ..., ⟨s (n-1), hs (n-1)⟩}
+  -- Step 1: S.sup id = ⟨⋃ i ∈ range n, s i, ...⟩
   let S : Finset (Subtype MeasurableSet) :=
     (Finset.range n).image fun i => ⟨s i, hs i⟩
-  have hS_disjoint : Set.PairwiseDisjoint (SetLike.coe S) id := by
-    intro a ha b hb hab
-    rw [Finset.mem_coe, Finset.mem_image] at ha hb
-    obtain ⟨i, _, rfl⟩ := ha
-    obtain ⟨j, _, rfl⟩ := hb
-    have hne : i ≠ j := fun h => hab (by simp [h])
-    simp only [Function.onFun, id_eq, disjoint_iff, Subtype.ext_iff]
-    exact Set.disjoint_iff_inter_eq_empty.mp (hs' hne)
-  let Q' := Finpartition.ofPairwiseDisjoint S hS_disjoint
-  -- Step 2: S.sup id = ⟨⋃ i ∈ range n, s i, ...⟩
   have sup_eq (m : ℕ) : ((Finset.range m).sup fun i => (⟨s i, hs i⟩ : Subtype MeasurableSet)) =
       ⋃ i ∈ Finset.range m, s i := by
     induction m with
@@ -248,33 +236,30 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     apply Subtype.ext
     simp only [S, Finset.sup_image, Function.id_comp]
     exact sup_eq n
-  -- Step 3: Direct union of all partition parts (no bind, no choose)
+  -- Step 2: Direct union of all partition parts
   let Q_parts := (Finset.range n).biUnion (fun i => (P i).parts)
+  -- Helper: s i and s j are disjoint as subtypes when i ≠ j
+  have hs_disj : ∀ i j, i ≠ j → Disjoint (⟨s i, hs i⟩ : Subtype MeasurableSet) ⟨s j, hs j⟩ := by
+    intro i j hij
+    rw [disjoint_iff, Subtype.ext_iff]
+    exact Set.disjoint_iff_inter_eq_empty.mp (hs' hij)
   -- Parts from different P i are disjoint
   have hQ_disj : Set.PairwiseDisjoint (Finset.range n : Set ℕ) (fun i => (P i).parts) := by
     intro i _ j _ hij
     rw [Function.onFun, Finset.disjoint_left]
     intro p hpi hpj
-    have hle_i := (P i).le hpi
-    have hle_j := (P j).le hpj
-    have hdisj : Disjoint (⟨s i, hs i⟩ : Subtype MeasurableSet) ⟨s j, hs j⟩ := by
-      rw [disjoint_iff, Subtype.ext_iff]
-      exact Set.disjoint_iff_inter_eq_empty.mp (hs' hij)
-    have hp_disj : Disjoint p p := hdisj.mono hle_i hle_j
+    have hp_disj : Disjoint p p := (hs_disj i j hij).mono ((P i).le hpi) ((P j).le hpj)
     exact (P i).ne_bot hpi (disjoint_self.mp hp_disj)
   -- Q_parts is pairwise disjoint (for ofPairwiseDisjoint)
   have hQ_parts_pwdisj : Set.PairwiseDisjoint (SetLike.coe Q_parts) id := by
     intro a ha b hb hab
     rw [Finset.mem_coe, Finset.mem_biUnion] at ha hb
-    obtain ⟨i, hi, hai⟩ := ha
-    obtain ⟨j, hj, hbj⟩ := hb
+    obtain ⟨i, _, hai⟩ := ha
+    obtain ⟨j, _, hbj⟩ := hb
     by_cases hij : i = j
     · subst hij
       exact (P i).disjoint hai hbj (fun h => hab (h ▸ rfl))
-    · have hdisj : Disjoint (⟨s i, hs i⟩ : Subtype MeasurableSet) ⟨s j, hs j⟩ := by
-        rw [disjoint_iff, Subtype.ext_iff]
-        exact Set.disjoint_iff_inter_eq_empty.mp (hs' hij)
-      exact hdisj.mono ((P i).le hai) ((P j).le hbj)
+    · exact (hs_disj i j hij).mono ((P i).le hai) ((P j).le hbj)
   -- ⊥ is not in Q_parts (since each (P i).bot_notMem)
   have hbot_notMem : ⊥ ∉ Q_parts := by
     rw [Finset.mem_biUnion]
