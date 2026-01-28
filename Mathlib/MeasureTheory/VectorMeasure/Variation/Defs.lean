@@ -199,6 +199,64 @@ def _root_.Finpartition.ofPairwiseDisjoint {α : Type*} [DistribLattice α] [Ord
     hT (Finset.erase_subset _ _ ha) (Finset.erase_subset _ _ hb) hab
   sup_parts := Finset.sup_erase_bot T
   bot_notMem := Finset.notMem_erase _ _
+
+-- TODO: move to Finpartition file
+/-- Restrict a partition of `a` to a sub-element `b ≤ a` by intersecting each part with `b`. -/
+def _root_.Finpartition.restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {a : α} (P : Finpartition a) (b : α) (hb : b ≤ a) : Finpartition b where
+  parts := (P.parts.image (· ⊓ b)).erase ⊥
+  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun x hx y hy hxy => by
+    simp only [Finset.coe_erase, Finset.coe_image, Set.mem_diff, Set.mem_image,
+               Set.mem_singleton_iff] at hx hy
+    obtain ⟨⟨px, hpx, rfl⟩, _⟩ := hx
+    obtain ⟨⟨py, hpy, rfl⟩, _⟩ := hy
+    simp only [Function.onFun, id_eq]
+    exact (P.disjoint hpx hpy fun h => hxy (h ▸ rfl)).mono inf_le_left inf_le_left
+  sup_parts := by
+    simp only [Finset.sup_erase_bot, Finset.sup_image, Function.id_comp,
+               (Finset.sup_inf_distrib_right ..).symm]
+    have h : P.parts.sup (fun x => x) = a := P.sup_parts
+    rw [h, inf_eq_right.mpr hb]
+  bot_notMem := Finset.notMem_erase _ _
+
+@[simp]
+lemma _root_.Finpartition.restrict_parts {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {a : α} (P : Finpartition a) (b : α) (hb : b ≤ a) :
+    (P.restrict b hb).parts = (P.parts.image (· ⊓ b)).erase ⊥ := rfl
+
+-- TODO: move to Order/Lattice
+/-- If `a` and `b` are disjoint, then `· ⊓ c` is injective on `{a, b}` when restricted to
+elements where `· ⊓ c ≠ ⊥`. -/
+lemma _root_.Disjoint.inf_right_injective {α : Type*} [Lattice α] [OrderBot α] {a b c : α}
+    (hdisj : Disjoint a b) (_ha : a ⊓ c ≠ ⊥) (hb : b ⊓ c ≠ ⊥) (hab : a ⊓ c = b ⊓ c) : a = b := by
+  by_contra hne
+  have : a ⊓ c ⊓ (b ⊓ c) = ⊥ := disjoint_iff.mp (hdisj.mono inf_le_left inf_le_left)
+  rw [hab, inf_idem] at this
+  exact hb this
+
+/-- The sum over restricted partition parts equals the sum over original parts with `f (· ⊓ b)`,
+provided `f ⊥ = 0` (so bottom terms don't contribute). -/
+lemma _root_.Finpartition.sum_restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {a : α} (P : Finpartition a) {b : α} (hb : b ≤ a) {M : Type*} [AddCommMonoid M]
+    (f : α → M) (hf : f ⊥ = 0) :
+    ∑ p ∈ (P.restrict b hb).parts, f p = ∑ q ∈ P.parts, f (q ⊓ b) := by
+  simp only [restrict_parts]
+  have hinj : ∀ x ∈ P.parts.filter (· ⊓ b ≠ ⊥), ∀ y ∈ P.parts.filter (· ⊓ b ≠ ⊥),
+      x ⊓ b = y ⊓ b → x = y := fun x hx y hy hxy => by
+    simp only [Finset.mem_filter] at hx hy
+    by_contra hne
+    have hdisj : Disjoint x y := P.disjoint hx.1 hy.1 hne
+    exact hne <| hdisj.inf_right_injective hx.2 hy.2 hxy
+  have heq : (P.parts.image (· ⊓ b)).erase ⊥ = (P.parts.filter (· ⊓ b ≠ ⊥)).image (· ⊓ b) := by
+    ext p; simp only [Finset.mem_erase, ne_eq, Finset.mem_image, Finset.mem_filter]
+    constructor
+    · rintro ⟨hp, q, hq, rfl⟩; exact ⟨q, ⟨hq, hp⟩, rfl⟩
+    · rintro ⟨q, ⟨hq, hp⟩, rfl⟩; exact ⟨hp, q, hq, rfl⟩
+  rw [heq, Finset.sum_image hinj, ← Finset.sum_filter_add_sum_filter_not P.parts (· ⊓ b ≠ ⊥)]
+  have hz : ∑ x ∈ P.parts.filter (¬ · ⊓ b ≠ ⊥), f (x ⊓ b) = 0 := Finset.sum_eq_zero fun x hx => by
+    simp only [ne_eq, Decidable.not_not, Finset.mem_filter] at hx
+    rw [hx.2, hf]
+  rw [hz, add_zero]
 ---
 
 open Classical in
@@ -307,16 +365,6 @@ lemma sum_le_tsum' {f : ℕ → ℝ≥0∞} {a : ℝ≥0∞}
   obtain ⟨n, hn⟩ := h b hb
   exact lt_of_lt_of_le hn (ENNReal.sum_le_tsum <| Finset.range n)
 
--- TODO: move to Order/Lattice
-/-- If `a` and `b` are disjoint, then `· ⊓ c` is injective on `{a, b}` when restricted to
-elements where `· ⊓ c ≠ ⊥`. -/
-lemma _root_.Disjoint.inf_right_injective {α : Type*} [Lattice α] [OrderBot α] {a b c : α}
-    (hdisj : Disjoint a b) (_ha : a ⊓ c ≠ ⊥) (hb : b ⊓ c ≠ ⊥) (hab : a ⊓ c = b ⊓ c) : a = b := by
-  by_contra hne
-  have : a ⊓ c ⊓ (b ⊓ c) = ⊥ := disjoint_iff.mp (hdisj.mono inf_le_left inf_le_left)
-  rw [hab, inf_idem] at this
-  exact hb this
-
 open Classical in
 lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s)) (hf : IsSubadditive f) (hf' : f ∅ = 0) :
@@ -324,86 +372,30 @@ lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
   refine sum_le_tsum' fun b hb ↦ ?_
   simp only [preVariation, MeasurableSet.iUnion hs, reduceDIte, lt_iSup_iff] at hb
   obtain ⟨Q, hQ⟩ := hb
-  -- Step 1: Define restriction partitions P_parts i
-  -- P_parts i = { q ⊓ ⟨s i, hs i⟩ | q ∈ Q.parts } \ {⊥}
-  let P_parts (i : ℕ) : Finset (Subtype MeasurableSet) :=
-    (Q.parts.image (· ⊓ ⟨s i, hs i⟩)).erase ⊥
-  have hP_disj (i : ℕ) : Set.PairwiseDisjoint {x | x ∈ P_parts i} id := by
-    intro a ha b hb hab
-    rw [Set.mem_setOf, Finset.mem_erase, Finset.mem_image] at ha hb
-    obtain ⟨_, qa, hqa, rfl⟩ := ha
-    obtain ⟨_, qb, hqb, rfl⟩ := hb
-    have hdisj := Q.disjoint hqa hqb fun h => hab (by rw [h])
-    exact hdisj.inf_left (c := ⟨s i, hs i⟩) |>.inf_right (c := ⟨s i, hs i⟩)
-  have hP_sup (i : ℕ) : (P_parts i).sup id = ⟨s i, hs i⟩ := by
-    have h1 : (P_parts i).sup id = (Q.parts.image (· ⊓ ⟨s i, hs i⟩)).sup id :=
-      Finset.sup_erase_bot _
-    have h2 : (Q.parts.image (· ⊓ ⟨s i, hs i⟩)).sup id = Q.parts.sup (· ⊓ ⟨s i, hs i⟩) :=
-      Finset.sup_image ..
-    have h3 : Q.parts.sup (· ⊓ ⟨s i, hs i⟩) = Q.parts.sup id ⊓ ⟨s i, hs i⟩ :=
-      (Finset.sup_inf_distrib_right ..).symm
-    rw [h1, h2, h3, Q.sup_parts, inf_eq_right]
-    exact Set.subset_iUnion s i
-  -- Step 2: Key splitting inequality using P_parts directly
-  have hinj (i : ℕ) : ∀ a ∈ Q.parts, ∀ b ∈ Q.parts,
-      a ⊓ ⟨s i, hs i⟩ ≠ ⊥ → b ⊓ ⟨s i, hs i⟩ ≠ ⊥ →
-      a ⊓ ⟨s i, hs i⟩ = b ⊓ ⟨s i, hs i⟩ → a = b := by
-    intro a ha b hb ha' hb' hab
-    by_contra hne
-    exact hne <| (Q.disjoint ha hb hne).inf_right_injective ha' hb' hab
+  -- Step 1: Restrict Q to each s i
   let si (i : ℕ) : Subtype MeasurableSet := ⟨s i, hs i⟩
-  have hP_parts_sum (i : ℕ) : ∑ p ∈ P_parts i, f p = ∑ q ∈ Q.parts, f (q ⊓ si i) := by
-    have heq : P_parts i = (Q.parts.filter (· ⊓ si i ≠ ⊥)).image (· ⊓ si i) := by
-      ext p
-      simp only [P_parts, si, Finset.mem_erase, ne_eq, Finset.mem_image, Finset.mem_filter]
-      constructor
-      · rintro ⟨hp, q, hq, rfl⟩; exact ⟨q, ⟨hq, hp⟩, rfl⟩
-      · rintro ⟨q, ⟨hq, hp⟩, rfl⟩; exact ⟨hp, q, hq, rfl⟩
-    have hinj' : ∀ a ∈ Q.parts.filter (· ⊓ si i ≠ ⊥), ∀ b ∈ Q.parts.filter (· ⊓ si i ≠ ⊥),
-        a ⊓ si i = b ⊓ si i → a = b := by
-      intro a ha b hb hab
-      simp only [Finset.mem_filter] at ha hb
-      exact hinj i a ha.1 b hb.1 ha.2 hb.2 hab
-    rw [heq, Finset.sum_image hinj']
-    have hz : ∑ x ∈ Q.parts.filter (· ⊓ si i = ⊥), f (x ⊓ si i) = 0 :=
-      Finset.sum_eq_zero fun q hq => by
-        have h : (↑(q ⊓ si i) : Set X) = ∅ := by rw [(Finset.mem_filter.mp hq).2]; rfl
-        simp only [show f (q ⊓ si i) = f (↑(q ⊓ si i) : Set X) from rfl, h, hf']
-    rw [← Finset.sum_filter_add_sum_filter_not Q.parts (· ⊓ si i ≠ ⊥)]
-    simp only [ne_eq, Decidable.not_not, hz, add_zero]
-    rfl
-  have splitting : ∑ q ∈ Q.parts, f q ≤ ∑' i, ∑ p ∈ P_parts i, f p := by
+  let P (i : ℕ) := Q.restrict (si i) (Set.subset_iUnion s i)
+  -- Step 2: Key splitting inequality
+  have splitting : ∑ q ∈ Q.parts, f q ≤ ∑' i, ∑ p ∈ (P i).parts, f p := by
     calc ∑ q ∈ Q.parts, f q
         ≤ ∑ q ∈ Q.parts, ∑' i, f (q ⊓ si i) := by
-          apply Finset.sum_le_sum
-          intro q hq
-          have hq_subset : q.val ⊆ ⋃ i, s i := Q.le hq
+          apply Finset.sum_le_sum fun q hq => ?_
           have hq_eq : q.val = ⋃ i, q.val ∩ s i := by
-            rw [← Set.inter_iUnion]; exact (Set.inter_eq_left.mpr hq_subset).symm
+            rw [← Set.inter_iUnion]; exact (Set.inter_eq_left.mpr (Q.le hq)).symm
           have hq_disj : Pairwise (Disjoint on fun i => q.val ∩ s i) :=
             fun i j hij => (hs' hij).mono Set.inter_subset_right Set.inter_subset_right
-          calc f q = f q.val := rfl
-            _ = f (⋃ i, q.val ∩ s i) := congrArg f hq_eq
-            _ ≤ ∑' i, f (q.val ∩ s i) := hf _ (fun i => q.2.inter (hs i)) hq_disj
+          calc f q = f (⋃ i, q.val ∩ s i) := congrArg f hq_eq
+            _ ≤ ∑' i, f (q.val ∩ s i) := hf _ (q.2.inter <| hs ·) hq_disj
             _ = ∑' i, f (q ⊓ si i) := rfl
       _ = ∑' i, ∑ q ∈ Q.parts, f (q ⊓ si i) :=
           (Summable.tsum_finsetSum (fun _ _ ↦ ENNReal.summable)).symm
-      _ = ∑' i, ∑ p ∈ P_parts i, f p := by simp only [hP_parts_sum]
+      _ = ∑' i, ∑ p ∈ (P i).parts, f p := by
+          congr 1; funext i
+          exact (Q.sum_restrict _ (fun p => f p) hf').symm
   -- Step 3: Find finite n from convergence
-  have hb' : b < ∑' i, ∑ p ∈ P_parts i, f p := lt_of_lt_of_le hQ splitting
-  rw [ENNReal.tsum_eq_iSup_nat] at hb'
-  obtain ⟨n, hn⟩ := lt_iSup_iff.mp hb'
-  -- Step 4: Bound each P_parts sum by preVariation using sum_le
-  have bound (i : ℕ) : ∑ p ∈ P_parts i, f p ≤ preVariation f (s i) := by
-    let P' := Finpartition.ofPairwiseDisjoint (P_parts i) (hP_disj i)
-    have hP'_parts : P'.parts = P_parts i :=
-      Finset.erase_eq_of_notMem (Finset.notMem_erase ⊥ _)
-    have hP'_sup_eq : ((P_parts i).sup id : Subtype MeasurableSet).val = s i := by rw [hP_sup i]
-    have hP'_meas : MeasurableSet ((P_parts i).sup id).val := by rw [hP'_sup_eq]; exact hs i
-    calc ∑ p ∈ P_parts i, f p = ∑ p ∈ P'.parts, f p := by rw [hP'_parts]
-      _ ≤ preVariation f ((P_parts i).sup id).val := sum_le f hP'_meas P'
-      _ = preVariation f (s i) := by rw [hP'_sup_eq]
-  -- Step 5: Conclude
+  obtain ⟨n, hn⟩ := lt_iSup_iff.mp <| ENNReal.tsum_eq_iSup_nat ▸ lt_of_lt_of_le hQ splitting
+  -- Step 4: Bound each restricted partition sum by preVariation
+  have bound (i : ℕ) : ∑ p ∈ (P i).parts, f p ≤ preVariation f (s i) := sum_le f (hs i) (P i)
   exact ⟨n, lt_of_lt_of_le hn (Finset.sum_le_sum fun i _ => bound i)⟩
 
 /-- Additivity of `variation_aux` for disjoint measurable sets. -/
