@@ -167,14 +167,19 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p ≤ preVariation f (⋃ i, s i) := by
   classical
   -- define `Q` as the union over `i ∈ Finset.range n` of `(P i).parts`.
-  let Q : Finset (Set X) := sorry --Finset.biUnion (Finset.range n) P
-  -- define `Q'` as the partition of `⋃ i, s i` obtained by taking `Q` and adding a single element.
-  let Q' : Finpartition (⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ : Subtype MeasurableSet) := sorry
+  let Q : Finset (Set X) := sorry
+  -- define `R` as the partition of `⋃ i, s i` obtained by taking `Q` and adding a single element.
+  let R : Finpartition (⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ : Subtype MeasurableSet) := sorry
+  -- show that `Q ⊆ R.parts
   calc
     _ = ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p := by simp
-    _ = ∑ q ∈ Q, f q := by sorry
-    _ = ∑ q ∈ Q'.parts, f q := by sorry
-    _ ≤ preVariation f (⋃ i, s i) := sum_le f (MeasurableSet.iUnion hs) Q'
+    _ = ∑ q ∈ Q, f q := by
+      -- since `Q` is defined as the union of `(P i).parts`
+      sorry
+    _ = ∑ q ∈ R.parts, f q := by
+      -- since `R.parts` contains `Q`
+      sorry
+    _ ≤ preVariation f (⋃ i, s i) := sum_le f (MeasurableSet.iUnion hs) R
 
 lemma sum_le_preVariation_iUnion {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s)) :
