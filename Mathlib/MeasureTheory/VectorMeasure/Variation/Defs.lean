@@ -301,55 +301,6 @@ above by the sum of the values assigned to the individual sets. -/
 def IsSubadditive (f : Set X → ℝ≥0∞) : Prop := ∀ (s : ℕ → Set X), (∀ i, MeasurableSet (s i)) →
   Pairwise (Disjoint on s) → f (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), f (s i)
 
--- /-- Given a subpartition `Q`, `∑ q ∈ Q, f q` is bounded by the sum of the `∑ q ∈ (P i), f q` where
--- the `P i` are the subpartitions formed by restricting to a disjoint set of sets `s i`. -/
--- lemma sum_part_le_tsum_sum_part (hf : IsSubadditive f) (hf' : f ∅ = 0) {s : ℕ → Set X}
---     (hs : ∀ i, MeasurableSet (s i)) (hs' : Pairwise (Disjoint on s)) {Q : Finset (Set X)}
---     (hQ : IsSubpartition (⋃ i, s i) Q) :
---     ∑ q ∈ Q, f q ≤ ∑' i, ∑ p ∈ (IsSubpartition.restriction (s i) Q), f p := by
---   classical
---   let P (i : ℕ) := IsSubpartition.restriction (s i) Q
---   calc ∑ q ∈ Q, f q
---     _ = ∑ q ∈ Q, f (⋃ i, q ∩ s i) := ?_
---     _ ≤ ∑ q ∈ Q, ∑' i, f (q ∩ s i) := ?_
---     _ = ∑' i, ∑ q ∈ Q, f (q ∩ s i) := ?_
---     _ ≤ ∑' i, ∑ p ∈ (P i), f p := ?_
---   · -- Each `q` is equal to the union of `q ∩ s i`.
---     -- TO DO: This only needs one direction of the argument since subadditivity implies monotone.
---     suffices h : ∀ q ∈ Q, q = ⋃ i, q ∩ s i by
---       exact Finset.sum_congr rfl (fun q hq ↦ (by simp [← h q hq]))
---     intro q hq
---     ext x
---     refine ⟨fun hx ↦ ?_, by simp_all⟩
---     obtain ⟨_, hs⟩ := (hQ.1 q hq) hx
---     obtain ⟨i, _⟩ := Set.mem_range.mp hs.1
---     simp_all [Set.mem_iUnion_of_mem i]
---   · -- Subadditivity of `f` since the `s i` are pairwise disjoint.
---     suffices h : ∀ p ∈ Q, f (⋃ i, p ∩ s i) ≤ ∑' (i : ℕ), f (p ∩ s i) by exact Finset.sum_le_sum h
---     intro p hp
---     refine hf (fun (i : ℕ) ↦ p ∩ s i) (fun i ↦ ?_) ?_
---     · exact MeasurableSet.inter (hQ.measurableSet p hp) (hs i)
---     · refine (Symmetric.pairwise_on (fun ⦃x y⦄ a ↦ Disjoint.symm a) fun i ↦ p ∩ s i).mpr ?_
---       intro _ _ _
---       exact Disjoint.inter_left' p (Disjoint.inter_right' p (hs' (by omega)))
---   · -- Swapping the order of the sum.
---     refine Eq.symm (Summable.tsum_finsetSum (fun _ _ ↦ ENNReal.summable))
---   · -- By defintion of the restricted subpartition
---     refine ENNReal.tsum_le_tsum (fun i ↦ ?_)
---     calc ∑ q ∈ Q, f (q ∩ s i)
---       _ = ∑ p ∈ (Finset.image (fun q ↦ q ∩ s i) Q), f p := by
---         refine Eq.symm (Finset.sum_image_of_disjoint (by simp [hf']) ?_)
---         intro _ hp _ hq hpq
---         exact Disjoint.inter_left (s i) (Disjoint.inter_right (s i) (hQ.disjoint hp hq hpq))
---       _ ≤  ∑ p ∈ P i, f p := by
---         refine Finset.sum_le_sum_of_ne_zero (fun p hp hp' ↦ ?_)
---         obtain hc | hc : p = ∅ ∨ ¬p = ∅ := eq_or_ne p ∅
---         · simp [hc, hf'] at hp'
---         · simp only [P, IsSubpartition.restriction, Finset.mem_filter, Finset.mem_image]
---           obtain ⟨q, hq, hq'⟩ := Finset.mem_image.mp hp
---           refine ⟨⟨q, hq, hq'⟩, ?_⟩
---           exact Set.nonempty_iff_ne_empty.mpr hc
-
 lemma sum_le_tsum' {f : ℕ → ℝ≥0∞} {a : ℝ≥0∞}
     (h : ∀ b < a, ∃ n, b < ∑ i ∈ Finset.range n, f i) : a ≤ ∑' i, f i := by
   refine le_of_forall_lt fun b hb ↦ ?_
@@ -363,22 +314,99 @@ lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
   refine sum_le_tsum' fun b hb ↦ ?_
   simp only [preVariation, MeasurableSet.iUnion hs, reduceDIte, lt_iSup_iff] at hb
   obtain ⟨Q, hQ⟩ := hb
-  -- -- Take the subpartitions defined as intersection of `Q` and `s i`.
-  -- let P (i : ℕ) := IsSubpartition.restriction (s i) Q
-  -- have hP (i : ℕ) : IsSubpartition (s i) (P i) :=
-  --   IsSubpartition.restriction_of_measurableSet hQ (hs i)
-  -- have hP' := calc
-  --   b < ∑ q ∈ Q, f q := hbQ
-  --   _ ≤ ∑' i, ∑ p ∈ (P i), f p := by exact sum_part_le_tsum_sum_part f hf hf' hs hs' hQ
-  -- have := tendsto_nat_tsum fun i ↦ ∑ p ∈ (P i), f p
-  -- obtain ⟨n, hn, _⟩ := (((tendsto_order.mp this).1 b hP').and (Filter.Ici_mem_atTop 1)).exists
-  -- use n
-  -- calc
-  --   b < ∑ i ∈ Finset.range n, ∑ p ∈ (P i), f p := hn
-  --   _ ≤ ∑ i ∈ Finset.range n, preVariation f (s i) := by
-  --     gcongr with i hi
-  --     exact sum_le f (hs i) (hP i)
-  sorry
+  -- Step 1: Define restriction partitions P_parts i
+  -- P_parts i = { q ⊓ ⟨s i, hs i⟩ | q ∈ Q.parts } \ {⊥}
+  let P_parts (i : ℕ) : Finset (Subtype MeasurableSet) :=
+    (Q.parts.image (· ⊓ ⟨s i, hs i⟩)).erase ⊥
+  have hP_disj (i : ℕ) : Set.PairwiseDisjoint {x | x ∈ P_parts i} id := by
+    intro a ha b hb hab
+    rw [Set.mem_setOf, Finset.mem_erase, Finset.mem_image] at ha hb
+    obtain ⟨_, qa, hqa, rfl⟩ := ha
+    obtain ⟨_, qb, hqb, rfl⟩ := hb
+    have hdisj := Q.disjoint hqa hqb fun h => hab (by rw [h])
+    exact hdisj.inf_left (c := ⟨s i, hs i⟩) |>.inf_right (c := ⟨s i, hs i⟩)
+  have hP_sup (i : ℕ) : (P_parts i).sup id = ⟨s i, hs i⟩ := by
+    have h1 : (P_parts i).sup id = (Q.parts.image (· ⊓ ⟨s i, hs i⟩)).sup id :=
+      Finset.sup_erase_bot _
+    have h2 : (Q.parts.image (· ⊓ ⟨s i, hs i⟩)).sup id = Q.parts.sup (· ⊓ ⟨s i, hs i⟩) :=
+      Finset.sup_image ..
+    have h3 : Q.parts.sup (· ⊓ ⟨s i, hs i⟩) = Q.parts.sup id ⊓ ⟨s i, hs i⟩ :=
+      (Finset.sup_inf_distrib_right ..).symm
+    rw [h1, h2, h3, Q.sup_parts, inf_eq_right]
+    exact Set.subset_iUnion s i
+  -- Step 2: Key splitting inequality using P_parts directly
+  have hinj (i : ℕ) : ∀ a ∈ Q.parts, ∀ b ∈ Q.parts,
+      a ⊓ ⟨s i, hs i⟩ ≠ ⊥ → b ⊓ ⟨s i, hs i⟩ ≠ ⊥ →
+      a ⊓ ⟨s i, hs i⟩ = b ⊓ ⟨s i, hs i⟩ → a = b := by
+    intro a ha b hb ha' hb' hab
+    by_contra hne
+    have hdisj : Disjoint a b := Q.disjoint ha hb hne
+    have : a ⊓ ⟨s i, hs i⟩ ⊓ (b ⊓ ⟨s i, hs i⟩) = ⊥ :=
+      disjoint_iff.mp (hdisj.mono inf_le_left inf_le_left)
+    rw [hab, inf_idem] at this
+    exact hb' this
+  let si (i : ℕ) : Subtype MeasurableSet := ⟨s i, hs i⟩
+  have hP_parts_sum (i : ℕ) : ∑ p ∈ P_parts i, f p = ∑ q ∈ Q.parts, f (q ⊓ si i) := by
+    have heq : P_parts i = (Q.parts.filter (· ⊓ si i ≠ ⊥)).image (· ⊓ si i) := by
+      ext p
+      simp only [P_parts, si, Finset.mem_erase, ne_eq, Finset.mem_image, Finset.mem_filter]
+      constructor
+      · rintro ⟨hp, q, hq, rfl⟩; exact ⟨q, ⟨hq, hp⟩, rfl⟩
+      · rintro ⟨q, ⟨hq, hp⟩, rfl⟩; exact ⟨hp, q, hq, rfl⟩
+    have hinj' : ∀ a ∈ Q.parts.filter (· ⊓ si i ≠ ⊥), ∀ b ∈ Q.parts.filter (· ⊓ si i ≠ ⊥),
+        a ⊓ si i = b ⊓ si i → a = b := by
+      intro a ha b hb hab
+      simp only [Finset.mem_filter] at ha hb
+      exact hinj i a ha.1 b hb.1 ha.2 hb.2 hab
+    rw [heq, Finset.sum_image hinj']
+    have hz : ∑ x ∈ Q.parts.filter (· ⊓ si i = ⊥), f (x ⊓ si i) = 0 := by
+      apply Finset.sum_eq_zero
+      simp only [Finset.mem_filter, and_imp]
+      intro q _ hq
+      change f (↑q ⊓ ↑(si i)) = 0
+      have : (↑q ⊓ ↑(si i) : Set X) = ∅ := by
+        rw [show (↑q ⊓ ↑(si i) : Set X) = ↑(q ⊓ si i) from rfl, hq]; rfl
+      rw [this, hf']
+    rw [← Finset.sum_filter_add_sum_filter_not Q.parts (· ⊓ si i ≠ ⊥)]
+    simp only [ne_eq, Decidable.not_not, hz, add_zero]
+    rfl
+  have splitting : ∑ q ∈ Q.parts, f q ≤ ∑' i, ∑ p ∈ P_parts i, f p := by
+    calc ∑ q ∈ Q.parts, f q
+        ≤ ∑ q ∈ Q.parts, ∑' i, f (q ⊓ si i) := by
+          apply Finset.sum_le_sum
+          intro q hq
+          have hq_subset : q.val ⊆ ⋃ i, s i := Q.le hq
+          have hq_eq : q.val = ⋃ i, q.val ∩ s i := by
+            rw [← Set.inter_iUnion]; exact (Set.inter_eq_left.mpr hq_subset).symm
+          have hq_disj : Pairwise (Disjoint on fun i => q.val ∩ s i) :=
+            fun i j hij => (hs' hij).mono Set.inter_subset_right Set.inter_subset_right
+          calc f q = f q.val := rfl
+            _ = f (⋃ i, q.val ∩ s i) := congrArg f hq_eq
+            _ ≤ ∑' i, f (q.val ∩ s i) := hf _ (fun i => q.2.inter (hs i)) hq_disj
+            _ = ∑' i, f (q ⊓ si i) := rfl
+      _ = ∑' i, ∑ q ∈ Q.parts, f (q ⊓ si i) :=
+          (Summable.tsum_finsetSum (fun _ _ ↦ ENNReal.summable)).symm
+      _ = ∑' i, ∑ p ∈ P_parts i, f p := by simp only [hP_parts_sum]
+  -- Step 3: Find finite n from convergence
+  have hb' : b < ∑' i, ∑ p ∈ P_parts i, f p := lt_of_lt_of_le hQ splitting
+  rw [ENNReal.tsum_eq_iSup_nat] at hb'
+  obtain ⟨n, hn⟩ := lt_iSup_iff.mp hb'
+  -- Step 4: Bound each P_parts sum by preVariation using sum_le
+  have bound (i : ℕ) : ∑ p ∈ P_parts i, f p ≤ preVariation f (s i) := by
+    have hbot : ⊥ ∉ P_parts i := Finset.notMem_erase ⊥ _
+    let P' : Finpartition ((P_parts i).sup id) :=
+      Finpartition.ofPairwiseDisjoint (P_parts i) (hP_disj i)
+    have hP'_parts : P'.parts = P_parts i := by
+      simp only [P', Finpartition.ofPairwiseDisjoint]
+      exact Finset.erase_eq_of_notMem hbot
+    have hP'_sup_eq : ((P_parts i).sup id : Subtype MeasurableSet).val = s i := by
+      rw [hP_sup i]
+    have hP'_meas : MeasurableSet ((P_parts i).sup id).val := by rw [hP'_sup_eq]; exact hs i
+    calc ∑ p ∈ P_parts i, f p = ∑ p ∈ P'.parts, f p := by rw [hP'_parts]
+      _ ≤ preVariation f ((P_parts i).sup id).val := sum_le f hP'_meas P'
+      _ = preVariation f (s i) := by rw [hP'_sup_eq]
+  -- Step 5: Conclude
+  exact ⟨n, lt_of_lt_of_le hn (Finset.sum_le_sum fun i _ => bound i)⟩
 
 /-- Additivity of `variation_aux` for disjoint measurable sets. -/
 lemma iUnion (hf : IsSubadditive f) (hf' : f ∅ = 0) (s : ℕ → Set X)
