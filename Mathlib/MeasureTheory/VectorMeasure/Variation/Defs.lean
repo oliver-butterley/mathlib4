@@ -307,6 +307,16 @@ lemma sum_le_tsum' {f : ℕ → ℝ≥0∞} {a : ℝ≥0∞}
   obtain ⟨n, hn⟩ := h b hb
   exact lt_of_lt_of_le hn (ENNReal.sum_le_tsum <| Finset.range n)
 
+-- TODO: move to Order/Lattice
+/-- If `a` and `b` are disjoint, then `· ⊓ c` is injective on `{a, b}` when restricted to
+elements where `· ⊓ c ≠ ⊥`. -/
+lemma _root_.Disjoint.inf_right_injective {α : Type*} [Lattice α] [OrderBot α] {a b c : α}
+    (hdisj : Disjoint a b) (_ha : a ⊓ c ≠ ⊥) (hb : b ⊓ c ≠ ⊥) (hab : a ⊓ c = b ⊓ c) : a = b := by
+  by_contra hne
+  have : a ⊓ c ⊓ (b ⊓ c) = ⊥ := disjoint_iff.mp (hdisj.mono inf_le_left inf_le_left)
+  rw [hab, inf_idem] at this
+  exact hb this
+
 open Classical in
 lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s)) (hf : IsSubadditive f) (hf' : f ∅ = 0) :
@@ -340,11 +350,7 @@ lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
       a ⊓ ⟨s i, hs i⟩ = b ⊓ ⟨s i, hs i⟩ → a = b := by
     intro a ha b hb ha' hb' hab
     by_contra hne
-    have hdisj : Disjoint a b := Q.disjoint ha hb hne
-    have : a ⊓ ⟨s i, hs i⟩ ⊓ (b ⊓ ⟨s i, hs i⟩) = ⊥ :=
-      disjoint_iff.mp (hdisj.mono inf_le_left inf_le_left)
-    rw [hab, inf_idem] at this
-    exact hb' this
+    exact hne <| (Q.disjoint ha hb hne).inf_right_injective ha' hb' hab
   let si (i : ℕ) : Subtype MeasurableSet := ⟨s i, hs i⟩
   have hP_parts_sum (i : ℕ) : ∑ p ∈ P_parts i, f p = ∑ q ∈ Q.parts, f (q ⊓ si i) := by
     have heq : P_parts i = (Q.parts.filter (· ⊓ si i ≠ ⊥)).image (· ⊓ si i) := by
@@ -359,14 +365,10 @@ lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
       simp only [Finset.mem_filter] at ha hb
       exact hinj i a ha.1 b hb.1 ha.2 hb.2 hab
     rw [heq, Finset.sum_image hinj']
-    have hz : ∑ x ∈ Q.parts.filter (· ⊓ si i = ⊥), f (x ⊓ si i) = 0 := by
-      apply Finset.sum_eq_zero
-      simp only [Finset.mem_filter, and_imp]
-      intro q _ hq
-      change f (↑q ⊓ ↑(si i)) = 0
-      have : (↑q ⊓ ↑(si i) : Set X) = ∅ := by
-        rw [show (↑q ⊓ ↑(si i) : Set X) = ↑(q ⊓ si i) from rfl, hq]; rfl
-      rw [this, hf']
+    have hz : ∑ x ∈ Q.parts.filter (· ⊓ si i = ⊥), f (x ⊓ si i) = 0 :=
+      Finset.sum_eq_zero fun q hq => by
+        have h : (↑(q ⊓ si i) : Set X) = ∅ := by rw [(Finset.mem_filter.mp hq).2]; rfl
+        simp only [show f (q ⊓ si i) = f (↑(q ⊓ si i) : Set X) from rfl, h, hf']
     rw [← Finset.sum_filter_add_sum_filter_not Q.parts (· ⊓ si i ≠ ⊥)]
     simp only [ne_eq, Decidable.not_not, hz, add_zero]
     rfl
@@ -393,14 +395,10 @@ lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
   obtain ⟨n, hn⟩ := lt_iSup_iff.mp hb'
   -- Step 4: Bound each P_parts sum by preVariation using sum_le
   have bound (i : ℕ) : ∑ p ∈ P_parts i, f p ≤ preVariation f (s i) := by
-    have hbot : ⊥ ∉ P_parts i := Finset.notMem_erase ⊥ _
-    let P' : Finpartition ((P_parts i).sup id) :=
-      Finpartition.ofPairwiseDisjoint (P_parts i) (hP_disj i)
-    have hP'_parts : P'.parts = P_parts i := by
-      simp only [P', Finpartition.ofPairwiseDisjoint]
-      exact Finset.erase_eq_of_notMem hbot
-    have hP'_sup_eq : ((P_parts i).sup id : Subtype MeasurableSet).val = s i := by
-      rw [hP_sup i]
+    let P' := Finpartition.ofPairwiseDisjoint (P_parts i) (hP_disj i)
+    have hP'_parts : P'.parts = P_parts i :=
+      Finset.erase_eq_of_notMem (Finset.notMem_erase ⊥ _)
+    have hP'_sup_eq : ((P_parts i).sup id : Subtype MeasurableSet).val = s i := by rw [hP_sup i]
     have hP'_meas : MeasurableSet ((P_parts i).sup id).val := by rw [hP'_sup_eq]; exact hs i
     calc ∑ p ∈ P_parts i, f p = ∑ p ∈ P'.parts, f p := by rw [hP'_parts]
       _ ≤ preVariation f ((P_parts i).sup id).val := sum_le f hP'_meas P'
