@@ -167,16 +167,36 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p ≤ preVariation f (⋃ i, s i) := by
   classical
   -- define `Q` as the union over `i ∈ Finset.range n` of `(P i).parts`.
-  let Q : Finset (Set X) := sorry
+  let Q : Finset (Set X) := Finset.biUnion (Finset.range n) fun i => (P i).parts.image Subtype.val
+  have hQ : Set.PairwiseDisjoint (Finset.range n : Set ℕ)
+      fun i => (P i).parts.image Subtype.val := by
+    -- TODO: improve the proof of this have
+    intro i _ j _ hij
+    simp only [Function.onFun, Finset.disjoint_iff_ne]
+    intro a ha b hb hab
+    obtain ⟨a', ha', rfl⟩ := Finset.mem_image.mp ha
+    obtain ⟨b', hb', rfl⟩ := Finset.mem_image.mp hb
+    have ha'_sub : (a' : Set X) ⊆ s i := (P i).le ha'
+    have hb'_sub : (b' : Set X) ⊆ s j := (P j).le hb'
+    have ha'_ne : (a' : Set X).Nonempty := by
+      rw [Set.nonempty_iff_ne_empty]
+      intro h; exact (P i).ne_bot ha' (Subtype.ext h)
+    obtain ⟨x, hxa'⟩ := ha'_ne
+    have hxb' : x ∈ (b' : Set X) := hab ▸ hxa'
+    exact (hs' hij).ne_of_mem (ha'_sub hxa') (hb'_sub hxb') rfl
   -- define `R` as the partition of `⋃ i, s i` obtained by taking `Q` and adding a single element.
   let R : Finpartition (⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ : Subtype MeasurableSet) := sorry
   -- show that `Q ⊆ R.parts
   calc
     _ = ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p := by simp
     _ = ∑ q ∈ Q, f q := by
-      -- since `Q` is defined as the union of `(P i).parts`
-      sorry
-    _ = ∑ q ∈ R.parts, f q := by
+      have : ∀ i, ∑ p ∈ (P i).parts, f p = ∑ q ∈ (P i).parts.image Subtype.val, f q := by
+        intro _
+        rw [Finset.sum_image]
+        intro _ _ _ _ hab
+        exact Subtype.val_injective hab
+      simp_rw [Q, this, ← Finset.sum_biUnion hQ]
+    _ ≤ ∑ q ∈ R.parts, f q := by
       -- since `R.parts` contains `Q`
       sorry
     _ ≤ preVariation f (⋃ i, s i) := sum_le f (MeasurableSet.iUnion hs) R
