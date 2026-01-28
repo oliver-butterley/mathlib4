@@ -254,9 +254,8 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
   let R := Q.extendSup hQ_le
   -- Step 5: The calc proof
   calc ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p
-      ≤ ∑ p ∈ R.parts, f ↑p := by
-        -- Each p ∈ (P i).parts is in R.parts
-
+      ≤ ∑ p ∈ Q.parts, f ↑p := by
+        -- Each (P i).parts contributes to Q.parts via bind
         sorry
     _ ≤ ∑ p ∈ R.parts, f ↑p := by
         -- R.parts ⊇ Q.parts by parts_subset_extendSup
