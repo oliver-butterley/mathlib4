@@ -213,24 +213,7 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
       ⋃ i ∈ Finset.range m, s i := by
     induction m with
     | zero => simp
-    | succ k ih =>
-      rw [Finset.range_add_one, Finset.sup_insert]
-      change s k ∪ ↑((Finset.range k).sup fun i => (⟨s i, hs i⟩ : Subtype MeasurableSet)) =
-        ⋃ i ∈ insert k (Finset.range k), s i
-      rw [ih]
-      ext x
-      simp only [Set.mem_union, Set.mem_iUnion, Finset.mem_insert, Finset.mem_range]
-      constructor
-      · intro hx
-        cases hx with
-        | inl h => exact ⟨k, Or.inl rfl, h⟩
-        | inr h =>
-          obtain ⟨i, hi, hxi⟩ := h
-          exact ⟨i, Or.inr hi, hxi⟩
-      · intro ⟨i, hi, hxi⟩
-        cases hi with
-        | inl h => exact Or.inl (h ▸ hxi)
-        | inr h => exact Or.inr ⟨i, h, hxi⟩
+    | succ k ih => simp [Finset.range_add_one, Finset.sup_insert, ih]
   have hS_sup : S.sup id = ⟨⋃ i ∈ Finset.range n, s i,
       MeasurableSet.biUnion (Finset.range n).countable_toSet fun i _ => hs i⟩ := by
     apply Subtype.ext
@@ -377,9 +360,9 @@ open Classical in
 lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s)) (hf : IsSubadditive f) (hf' : f ∅ = 0) :
     preVariation f (⋃ i, s i) ≤ ∑' i, preVariation f (s i) := by
-  -- refine sum_le_tsum' fun b hb ↦ ?_
-  -- simp  [preVariation, MeasurableSet.iUnion hs, reduceIte, lt_iSup_iff] at hb
-  -- obtain ⟨Q, hQ⟩ := hb
+  refine sum_le_tsum' fun b hb ↦ ?_
+  simp only [preVariation, MeasurableSet.iUnion hs, reduceDIte, lt_iSup_iff] at hb
+  obtain ⟨Q, hQ⟩ := hb
   -- -- Take the subpartitions defined as intersection of `Q` and `s i`.
   -- let P (i : ℕ) := IsSubpartition.restriction (s i) Q
   -- have hP (i : ℕ) : IsSubpartition (s i) (P i) :=
