@@ -161,6 +161,33 @@ lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNRe
       _ ≤ ∑ p ∈ P.parts, f p + ε := by gcongr
   · simp [*]
 
+-- TODO: move to Finpartition file
+/-- Extend a partition of `a` to a partition of `b` when `a ≤ b`, by adding `b \ a` as a `part`. -/
+noncomputable def _root_.Finpartition.extendSup {α : Type*} [GeneralizedBooleanAlgebra α] {a b : α}
+    (P : Finpartition a) (hab : a ≤ b) : Finpartition b := by
+  classical
+  exact if hr : b \ a = ⊥ then (le_antisymm (sdiff_eq_bot_iff.mp hr) hab) ▸ P
+    else P.extend hr disjoint_sdiff_self_right (sup_sdiff_cancel_right hab)
+
+lemma _root_.Finpartition.parts_subset_extendSup {α : Type*} [GeneralizedBooleanAlgebra α]
+    {a b : α} (P : Finpartition a) (hab : a ≤ b) : P.parts ⊆ (P.extendSup hab).parts := by
+  classical
+  simp only [Finpartition.extendSup]
+  split_ifs with hr
+  · cases le_antisymm (sdiff_eq_bot_iff.mp hr) hab; rfl
+  · exact Finset.subset_insert _ _
+
+-- TODO: move to Finpartition file
+/-- Construct a `Finpartition` of `T.sup id` from a finset `T` of pairwise disjoint elements. -/
+def _root_.Finpartition.ofPairwiseDisjoint {α : Type*} [DistribLattice α] [OrderBot α]
+    (T : Finset α) (hT : (T : Set α).PairwiseDisjoint id) (hT' : ⊥ ∉ T) :
+    Finpartition (T.sup id) where
+  parts := T
+  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr hT
+  sup_parts := rfl
+  bot_notMem := hT'
+---
+
 lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s))
     (P : ∀ (i : ℕ), Finpartition (⟨s i, hs i⟩ : Subtype MeasurableSet)) (n : ℕ) :
@@ -184,8 +211,22 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     obtain ⟨x, hxa'⟩ := ha'_ne
     have hxb' : x ∈ (b' : Set X) := hab ▸ hxa'
     exact (hs' hij).ne_of_mem (ha'_sub hxa') (hb'_sub hxb') rfl
-  -- define `R` as the partition of `⋃ i, s i` obtained by taking `Q` and adding a single element.
-  let R : Finpartition (⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ : Subtype MeasurableSet) := sorry
+  -- define `R` as the partition of `⋃ i, s i` obtained by extending `P_n`.
+  let Q' : Finset (Subtype MeasurableSet) :=
+    Finset.biUnion (Finset.range n) fun i => (P i).parts
+  let union_n : Subtype MeasurableSet :=
+    ⟨⋃ i ∈ Finset.range n, s i, MeasurableSet.biUnion (Finset.range n).countable_toSet fun i _ => hs i⟩
+  have hQ'_sup : Q'.sup id = union_n := sorry
+  let P_n : Finpartition union_n := {
+    parts := Q'
+    supIndep := sorry
+    sup_parts := hQ'_sup
+    bot_notMem := sorry
+  }
+  have hunion_le : union_n ≤ ⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ :=
+    Set.iUnion₂_subset fun i _ => Set.subset_iUnion s i
+  let R : Finpartition (⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ : Subtype MeasurableSet) :=
+    P_n.extendSup hunion_le
   -- show that `Q ⊆ R.parts
   calc
     _ = ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p := by simp
