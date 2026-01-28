@@ -255,15 +255,25 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
   -- Step 5: The calc proof
   calc ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p
       ≤ ∑ a ∈ Q'.parts.attach, ∑ p ∈ (hbind_fn a.1 a.2).parts, f p := by
-        -- Reindex: sum over i ∈ range n → sum over a ∈ Q'.parts
-        -- For non-empty s i: ⟨s i, hs i⟩ ∈ Q'.parts and hbind_fn gives P j with s j = s i
-        -- For empty s i: inner sum is 0 (partition of ⊥ has no parts)
-        -- By disjointness, if s i = s j and both non-empty, then i = j
+        -- Empty s i contribute 0, non-empty s i map to Q'.parts
+        have empty_parts : ∀ i, s i = ∅ → (P i).parts = ∅ := fun i hi => by
+          have hbot : (⟨s i, hs i⟩ : Subtype MeasurableSet) = ⊥ := Subtype.ext hi
+          rw [Finset.eq_empty_iff_forall_notMem]
+          intro p hp
+          exact (P i).ne_bot hp (eq_bot_iff.mpr (hbot ▸ (P i).le hp))
+
         sorry
-    _ = ∑ p ∈ Q.parts, f ↑p := by
-        -- Q.parts = Q'.parts.attach.biUnion (fun a => (hbind_fn a.1 a.2).parts)
-        -- Use Finset.sum_biUnion since the parts are pairwise disjoint
-        sorry
+    _ = ∑ p ∈ Q.parts, f p := by
+        rw [Finpartition.bind_parts]
+        refine (Finset.sum_biUnion ?_).symm
+        intro ⟨a, ha⟩ _ ⟨b, hb⟩ _ hab
+        simp only [Function.onFun, Finset.disjoint_left]
+        intro p hpa hpb
+        have hdisj : Disjoint a b := Q'.disjoint ha hb (by simpa using hab)
+        have hle_a := (hbind_fn a ha).le hpa
+        have hle_b := (hbind_fn b hb).le hpb
+        have hp_disj : Disjoint p p := hdisj.mono hle_a hle_b
+        exact (hbind_fn a ha).ne_bot hpa (disjoint_self.mp hp_disj)
     _ ≤ ∑ p ∈ R.parts, f ↑p := by
         -- R.parts ⊇ Q.parts by parts_subset_extendSup
         apply Finset.sum_le_sum_of_subset
