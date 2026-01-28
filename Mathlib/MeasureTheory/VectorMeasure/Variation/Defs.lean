@@ -254,8 +254,15 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
   let R := Q.extendSup hQ_le
   -- Step 5: The calc proof
   calc ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p
-      ≤ ∑ p ∈ Q.parts, f ↑p := by
-        -- Each (P i).parts contributes to Q.parts via bind
+      ≤ ∑ a ∈ Q'.parts.attach, ∑ p ∈ (hbind_fn a.1 a.2).parts, f p := by
+        -- Reindex: sum over i ∈ range n → sum over a ∈ Q'.parts
+        -- For non-empty s i: ⟨s i, hs i⟩ ∈ Q'.parts and hbind_fn gives P j with s j = s i
+        -- For empty s i: inner sum is 0 (partition of ⊥ has no parts)
+        -- By disjointness, if s i = s j and both non-empty, then i = j
+        sorry
+    _ = ∑ p ∈ Q.parts, f ↑p := by
+        -- Q.parts = Q'.parts.attach.biUnion (fun a => (hbind_fn a.1 a.2).parts)
+        -- Use Finset.sum_biUnion since the parts are pairwise disjoint
         sorry
     _ ≤ ∑ p ∈ R.parts, f ↑p := by
         -- R.parts ⊇ Q.parts by parts_subset_extendSup
