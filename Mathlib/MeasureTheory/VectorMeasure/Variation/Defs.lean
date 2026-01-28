@@ -201,6 +201,37 @@ def _root_.Finpartition.ofPairwiseDisjoint {α : Type*} [DistribLattice α] [Ord
   bot_notMem := Finset.notMem_erase _ _
 
 -- TODO: move to Finpartition file
+/-- Merge a family of partitions of pairwise disjoint elements into a partition of their sup. -/
+def _root_.Finpartition.biUnion {ι α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {I : Finset ι} {a : ι → α} (P : ∀ i, Finpartition (a i))
+    (ha : Set.PairwiseDisjoint (I : Set ι) a) : Finpartition (I.sup a) where
+  parts := I.biUnion fun i => (P i).parts
+  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun x hx y hy hxy => by
+    simp only [Finset.coe_biUnion, Set.mem_iUnion, Finset.mem_coe] at hx hy
+    obtain ⟨i, hi, hxi⟩ := hx
+    obtain ⟨j, hj, hyj⟩ := hy
+    by_cases hij : i = j
+    · subst hij; exact (P i).disjoint hxi hyj fun h => hxy (h ▸ rfl)
+    · exact (ha hi hj hij).mono ((P i).le hxi) ((P j).le hyj)
+  sup_parts := by
+    rw [Finset.sup_biUnion]
+    exact Finset.sup_congr rfl fun i _ => (P i).sup_parts
+  bot_notMem := by
+    rw [Finset.mem_biUnion]; push_neg; exact fun i _ => (P i).bot_notMem
+
+/-- The sum over a merged partition equals the sum of sums over component partitions. -/
+lemma _root_.Finpartition.sum_biUnion {ι α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {I : Finset ι} {a : ι → α} (P : ∀ i, Finpartition (a i))
+    (ha : Set.PairwiseDisjoint (I : Set ι) a) {M : Type*} [AddCommMonoid M] (f : α → M) :
+    ∑ p ∈ (Finpartition.biUnion P ha).parts, f p = ∑ i ∈ I, ∑ p ∈ (P i).parts, f p := by
+  change ∑ p ∈ I.biUnion (fun i => (P i).parts), f p = _
+  refine Finset.sum_biUnion fun i hi j hj hij => ?_
+  rw [Function.onFun, Finset.disjoint_left]
+  intro p hpi hpj
+  have hp_disj : Disjoint p p := (ha hi hj hij).mono ((P i).le hpi) ((P j).le hpj)
+  exact (P i).ne_bot hpi (disjoint_self.mp hp_disj)
+
+-- TODO: move to Finpartition file
 /-- Restrict a partition of `a` to a sub-element `b ≤ a` by intersecting each part with `b`. -/
 def _root_.Finpartition.restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
     {a : α} (P : Finpartition a) (b : α) (hb : b ≤ a) : Finpartition b where
@@ -259,71 +290,36 @@ lemma _root_.Finpartition.sum_restrict {α : Type*} [DistribLattice α] [OrderBo
   rw [hz, add_zero]
 ---
 
+/-- The sup of measurable set subtypes over a finset equals the biUnion of the underlying sets. -/
+lemma Finset.sup_measurableSetSubtype_eq_biUnion {ι : Type*}
+    (si : ι → Subtype (@MeasurableSet X _)) (I : Finset ι) :
+    ((I.sup si : Subtype MeasurableSet) : Set X) = ⋃ i ∈ I, (si i).val := by
+  classical
+  refine I.induction_on ?_ ?_
+  · simp
+  · intro a J _ hJ
+    simp only [Finset.sup_insert, Finset.mem_insert, Set.iUnion_iUnion_eq_or_left, ← hJ]
+    rfl
+
 open Classical in
 lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s))
     (P : ∀ (i : ℕ), Finpartition (⟨s i, hs i⟩ : Subtype MeasurableSet)) (n : ℕ) :
     ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p ≤ preVariation f (⋃ i, s i) := by
-  -- Step 1: S.sup id = ⟨⋃ i ∈ range n, s i, ...⟩
-  let S : Finset (Subtype MeasurableSet) :=
-    (Finset.range n).image fun i => ⟨s i, hs i⟩
-  have sup_eq (m : ℕ) : ((Finset.range m).sup fun i => (⟨s i, hs i⟩ : Subtype MeasurableSet)) =
-      ⋃ i ∈ Finset.range m, s i := by
-    induction m with
-    | zero => simp
-    | succ k ih => simp [Finset.range_add_one, Finset.sup_insert, ih]
-  have hS_sup : S.sup id = ⟨⋃ i ∈ Finset.range n, s i,
-      MeasurableSet.biUnion (Finset.range n).countable_toSet fun i _ => hs i⟩ := by
-    apply Subtype.ext
-    simp only [S, Finset.sup_image, Function.id_comp]
-    exact sup_eq n
-  -- Step 2: Direct union of all partition parts
-  let Q_parts := (Finset.range n).biUnion (fun i => (P i).parts)
-  -- Helper: s i and s j are disjoint as subtypes when i ≠ j
-  have hs_disj : ∀ i j, i ≠ j → Disjoint (⟨s i, hs i⟩ : Subtype MeasurableSet) ⟨s j, hs j⟩ := by
-    intro i j hij
-    rw [disjoint_iff, Subtype.ext_iff]
+  -- The sets s i are pairwise disjoint as subtypes
+  let si (i : ℕ) : Subtype MeasurableSet := ⟨s i, hs i⟩
+  have hs_disj : Set.PairwiseDisjoint (Finset.range n : Set ℕ) si := fun i _ j _ hij => by
+    simp only [Function.onFun, disjoint_iff, Subtype.ext_iff]
     exact Set.disjoint_iff_inter_eq_empty.mp (hs' hij)
-  -- Parts from different P i are disjoint
-  have hQ_disj : Set.PairwiseDisjoint (Finset.range n : Set ℕ) (fun i => (P i).parts) := by
-    intro i _ j _ hij
-    rw [Function.onFun, Finset.disjoint_left]
-    intro p hpi hpj
-    have hp_disj : Disjoint p p := (hs_disj i j hij).mono ((P i).le hpi) ((P j).le hpj)
-    exact (P i).ne_bot hpi (disjoint_self.mp hp_disj)
-  -- Q_parts is pairwise disjoint (for ofPairwiseDisjoint)
-  have hQ_parts_pwdisj : Set.PairwiseDisjoint (SetLike.coe Q_parts) id := by
-    intro a ha b hb hab
-    rw [Finset.mem_coe, Finset.mem_biUnion] at ha hb
-    obtain ⟨i, _, hai⟩ := ha
-    obtain ⟨j, _, hbj⟩ := hb
-    by_cases hij : i = j
-    · subst hij
-      exact (P i).disjoint hai hbj (fun h => hab (h ▸ rfl))
-    · exact (hs_disj i j hij).mono ((P i).le hai) ((P j).le hbj)
-  -- ⊥ is not in Q_parts (since each (P i).bot_notMem)
-  have hbot_notMem : ⊥ ∉ Q_parts := by
-    rw [Finset.mem_biUnion]
-    push_neg
-    exact fun i _ => (P i).bot_notMem
-  -- Q_parts.sup id equals S.sup id
-  have hQ_parts_sup : Q_parts.sup id = S.sup id := by
-    simp only [Q_parts, S, Finset.sup_biUnion, Finset.sup_image, Function.id_comp]
-    congr 1
-    funext i
-    exact (P i).sup_parts
-  -- Create Q as a Finpartition of Q_parts.sup id
-  let Q := Finpartition.ofPairwiseDisjoint Q_parts hQ_parts_pwdisj
-  -- Q.parts = Q_parts (since ⊥ ∉ Q_parts)
-  have hQ_parts_eq : Q.parts = Q_parts := Finset.erase_eq_self.mpr hbot_notMem
-  -- Step 4: Extend Q to a partition of ⋃ i, s i
-  have hQ_le : Q_parts.sup id ≤ ⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ := by
-    rw [hQ_parts_sup, hS_sup]
+  -- Merge the partitions into a single partition
+  let Q := Finpartition.biUnion P hs_disj
+  -- The merged partition covers ⋃ i ∈ range n, s i ⊆ ⋃ i, s i
+  have hQ_le : (Finset.range n).sup si ≤ ⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ := by
+    rw [← Subtype.coe_le_coe, Finset.sup_measurableSetSubtype_eq_biUnion si]
     exact Set.iUnion₂_subset fun i _ => Set.subset_iUnion s i
   let R := Q.extendOfLE hQ_le
   calc ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p
-      _ = ∑ p ∈ Q_parts, f p := (Finset.sum_biUnion hQ_disj).symm
-      _ = ∑ p ∈ Q.parts, f p := by rw [hQ_parts_eq]
+      _ = ∑ p ∈ Q.parts, f p := (Finpartition.sum_biUnion P hs_disj (fun p => f p)).symm
       _ ≤ ∑ p ∈ R.parts, f p := Finset.sum_le_sum_of_subset (Q.parts_subset_extendOfLE hQ_le)
       _ ≤ preVariation f (⋃ i, s i) := sum_le f (MeasurableSet.iUnion hs) R
 
