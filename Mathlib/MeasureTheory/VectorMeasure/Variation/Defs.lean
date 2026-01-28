@@ -257,14 +257,14 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     simp only [S, Finset.mem_image] at this
     obtain ⟨i, hi, rfl⟩ := this
     exact ⟨i, hi, rfl⟩
-  -- let hbind_fn : ∀ p ∈ Q'.parts, Finpartition p := fun p hp =>
-  --   (hS_mem p hp).choose_spec.2 ▸ P (hS_mem p hp).choose
-  let Q := Q'.bind sorry
+  let hbind_fn : ∀ p ∈ Q'.parts, Finpartition p := fun p hp =>
+    (hS_mem p hp).choose_spec.2 ▸ P (hS_mem p hp).choose
+  let Q := Q'.bind hbind_fn
   -- Step 4: Extend Q to a partition of ⋃ i, s i using extendSup
   have hQ_le : S.sup id ≤ ⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ := by
     rw [hS_sup]
     exact Set.iUnion₂_subset fun i _ => Set.subset_iUnion s i
-  let R := Q.extendSup hQ_le
+  let R := Q.extendOfLE hQ_le
   -- Step 5: The calc proof
   calc ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p
       ≤ ∑ a ∈ Q'.parts.attach, ∑ p ∈ (hbind_fn a.1 a.2).parts, f p := by
@@ -290,7 +290,7 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     _ ≤ ∑ p ∈ R.parts, f ↑p := by
         -- R.parts ⊇ Q.parts by parts_subset_extendSup
         apply Finset.sum_le_sum_of_subset
-        exact Q.parts_subset_extendSup hQ_le
+        exact Q.parts_subset_extendOfLE hQ_le
     _ ≤ preVariation f (⋃ i, s i) := sum_le f (MeasurableSet.iUnion hs) R
 
 lemma sum_le_preVariation_iUnion {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
