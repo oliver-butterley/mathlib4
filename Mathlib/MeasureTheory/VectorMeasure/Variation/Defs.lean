@@ -88,7 +88,7 @@ lemma set_subtype_bot_eq {α : Type*} [MeasurableSpace α] :
 /-- `preVariation` of the empty set is equal to zero. -/
 lemma empty : preVariation f ∅ = 0 := by simp [preVariation]
 
-lemma sum_le {s : Set X} (hs : MeasurableSet s) {P : Finpartition (⟨s, hs⟩ : Subtype MeasurableSet)}
+lemma sum_le {s : Set X} (hs : MeasurableSet s) (P : Finpartition (⟨s, hs⟩ : Subtype MeasurableSet))
     : ∑ p ∈ P.parts, f p ≤ preVariation f s := by
   simp only [preVariation, hs, reduceDIte]
   exact le_iSup_iff.mpr fun b a ↦ a P
@@ -113,7 +113,7 @@ lemma sum_le_preVariation_of_subset_ne {s₁ s₂ : Set X} (hs₁ : MeasurableSe
       apply Finset.sum_le_sum_of_subset
       intro _ hx
       simpa [Q] using Or.inr hx
-    _ ≤ preVariation f s₂ := sum_le f hs₂
+    _ ≤ preVariation f s₂ := sum_le f hs₂ _
 
 /-- `preVariation` is monotone in terms of the (measurable) set. -/
 lemma mono {s₁ s₂ : Set X} (hs₂ : MeasurableSet s₂) (h : s₁ ⊆ s₂) :
@@ -161,75 +161,20 @@ lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNRe
       _ ≤ ∑ p ∈ P.parts, f p + ε := by gcongr
   · simp [*]
 
-
-/-- A set function is subadditive if the value assigned to the union of disjoint sets is bounded
-above by the sum of the values assigned to the individual sets. -/
-def IsSubadditive (f : Set X → ℝ≥0∞) : Prop := ∀ (s : ℕ → Set X), (∀ i, MeasurableSet (s i)) →
-  Pairwise (Disjoint on s) → f (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), f (s i)
-
-/-- Given a subpartition `Q`, `∑ q ∈ Q, f q` is bounded by the sum of the `∑ q ∈ (P i), f q` where
-the `P i` are the subpartitions formed by restricting to a disjoint set of sets `s i`. -/
-lemma sum_part_le_tsum_sum_part (hf : IsSubadditive f) (hf' : f ∅ = 0) {s : ℕ → Set X}
-    (hs : ∀ i, MeasurableSet (s i)) (hs' : Pairwise (Disjoint on s)) {Q : Finset (Set X)}
-    (hQ : IsSubpartition (⋃ i, s i) Q) :
-    ∑ q ∈ Q, f q ≤ ∑' i, ∑ p ∈ (IsSubpartition.restriction (s i) Q), f p := by
-  classical
-  let P (i : ℕ) := IsSubpartition.restriction (s i) Q
-  calc ∑ q ∈ Q, f q
-    _ = ∑ q ∈ Q, f (⋃ i, q ∩ s i) := ?_
-    _ ≤ ∑ q ∈ Q, ∑' i, f (q ∩ s i) := ?_
-    _ = ∑' i, ∑ q ∈ Q, f (q ∩ s i) := ?_
-    _ ≤ ∑' i, ∑ p ∈ (P i), f p := ?_
-  · -- Each `q` is equal to the union of `q ∩ s i`.
-    -- TO DO: This only needs one direction of the argument since subadditivity implies monotone.
-    suffices h : ∀ q ∈ Q, q = ⋃ i, q ∩ s i by
-      exact Finset.sum_congr rfl (fun q hq ↦ (by simp [← h q hq]))
-    intro q hq
-    ext x
-    refine ⟨fun hx ↦ ?_, by simp_all⟩
-    obtain ⟨_, hs⟩ := (hQ.1 q hq) hx
-    obtain ⟨i, _⟩ := Set.mem_range.mp hs.1
-    simp_all [Set.mem_iUnion_of_mem i]
-  · -- Subadditivity of `f` since the `s i` are pairwise disjoint.
-    suffices h : ∀ p ∈ Q, f (⋃ i, p ∩ s i) ≤ ∑' (i : ℕ), f (p ∩ s i) by exact Finset.sum_le_sum h
-    intro p hp
-    refine hf (fun (i : ℕ) ↦ p ∩ s i) (fun i ↦ ?_) ?_
-    · exact MeasurableSet.inter (hQ.measurableSet p hp) (hs i)
-    · refine (Symmetric.pairwise_on (fun ⦃x y⦄ a ↦ Disjoint.symm a) fun i ↦ p ∩ s i).mpr ?_
-      intro _ _ _
-      exact Disjoint.inter_left' p (Disjoint.inter_right' p (hs' (by omega)))
-  · -- Swapping the order of the sum.
-    refine Eq.symm (Summable.tsum_finsetSum (fun _ _ ↦ ENNReal.summable))
-  · -- By defintion of the restricted subpartition
-    refine ENNReal.tsum_le_tsum (fun i ↦ ?_)
-    calc ∑ q ∈ Q, f (q ∩ s i)
-      _ = ∑ p ∈ (Finset.image (fun q ↦ q ∩ s i) Q), f p := by
-        refine Eq.symm (Finset.sum_image_of_disjoint (by simp [hf']) ?_)
-        intro _ hp _ hq hpq
-        exact Disjoint.inter_left (s i) (Disjoint.inter_right (s i) (hQ.disjoint hp hq hpq))
-      _ ≤  ∑ p ∈ P i, f p := by
-        refine Finset.sum_le_sum_of_ne_zero (fun p hp hp' ↦ ?_)
-        obtain hc | hc : p = ∅ ∨ ¬p = ∅ := eq_or_ne p ∅
-        · simp [hc, hf'] at hp'
-        · simp only [P, IsSubpartition.restriction, Finset.mem_filter, Finset.mem_image]
-          obtain ⟨q, hq, hq'⟩ := Finset.mem_image.mp hp
-          refine ⟨⟨q, hq, hq'⟩, ?_⟩
-          exact Set.nonempty_iff_ne_empty.mpr hc
-
 lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
-    (hs' : Pairwise (Disjoint on s)) (P : ℕ → Finset (Set X))
-    (hP : ∀ (i : ℕ), IsSubpartition (s i) (P i)) (n : ℕ) :
-    ∑ i ∈ Finset.range n, ∑ p ∈ (P i), f p ≤ preVariation f (⋃ i, s i) := by
+    (hs' : Pairwise (Disjoint on s))
+    (P : ∀ (i : ℕ), Finpartition (⟨s i, hs i⟩ : Subtype MeasurableSet)) (n : ℕ) :
+    ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p ≤ preVariation f (⋃ i, s i) := by
   classical
-  let Q := Finset.biUnion (Finset.range n) P
-  have hQ : IsSubpartition (⋃ i, s i) Q := by exact IsSubpartition.iUnion hs' hP (Finset.range n)
+  -- define `Q` as the union over `i ∈ Finset.range n` of `(P i).parts`.
+  let Q : Finset (Set X) := sorry --Finset.biUnion (Finset.range n) P
+  -- define `Q'` as the partition of `⋃ i, s i` obtained by taking `Q` and adding a single element.
+  let Q' : Finpartition (⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ : Subtype MeasurableSet) := sorry
   calc
-    _ = ∑ i ∈ Finset.range n, ∑ p ∈ P i, f p := by simp
-    _ = ∑ q ∈ Q, f q := by
-      refine Eq.symm (Finset.sum_biUnion fun l _ m _ hlm ↦ ?_)
-      exact IsSubpartition.disjoint_of_disjoint (hs' hlm) (hP l) (hP m)
-    _ ≤ preVariation f (⋃ i, s i) := by
-      simpa using sum_le f (MeasurableSet.iUnion hs) hQ
+    _ = ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p := by simp
+    _ = ∑ q ∈ Q, f q := by sorry
+    _ = ∑ q ∈ Q'.parts, f q := by sorry
+    _ ≤ preVariation f (⋃ i, s i) := sum_le f (MeasurableSet.iUnion hs) Q'
 
 lemma sum_le_preVariation_iUnion {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s)) :
@@ -247,16 +192,70 @@ lemma sum_le_preVariation_iUnion {s : ℕ → Set X} (hs : ∀ i, MeasurableSet 
   -- `preVariation f (s i) ≤ ∑ p ∈ (P i), f p + ε`.
   choose P hP using fun i ↦ exists_isSubpartition_sum_ge f (hs i) (hε) (hs'' i)
   calc ∑ i ∈ Finset.range n, preVariation f (s i)
-    _ ≤ ∑ i ∈ Finset.range n, (∑ p ∈ (P i), f p + ε) := by
+    _ ≤ ∑ i ∈ Finset.range n, (∑ p ∈ (P i).parts, f p + ε) := by
       gcongr with i _
-      exact (hP i).2
-    _ = ∑ i ∈ Finset.range n, ∑ p ∈ (P i), f p + ε' := by
+      exact (hP i)
+    _ = ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p + ε' := by
       rw [Finset.sum_add_distrib]
       norm_cast
       simp [show n * ε = ε' by rw [mul_div_cancel₀ _ (by positivity)]]
     _ ≤ preVariation f (⋃ i, s i) + ε' := by
-      have := sum_le_preVariation_iUnion' f hs hs' P (fun i ↦ (hP i).1) n
+      have := sum_le_preVariation_iUnion' f hs hs' P n
       gcongr
+
+/-- A set function is subadditive if the value assigned to the union of disjoint sets is bounded
+above by the sum of the values assigned to the individual sets. -/
+def IsSubadditive (f : Set X → ℝ≥0∞) : Prop := ∀ (s : ℕ → Set X), (∀ i, MeasurableSet (s i)) →
+  Pairwise (Disjoint on s) → f (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), f (s i)
+
+-- /-- Given a subpartition `Q`, `∑ q ∈ Q, f q` is bounded by the sum of the `∑ q ∈ (P i), f q` where
+-- the `P i` are the subpartitions formed by restricting to a disjoint set of sets `s i`. -/
+-- lemma sum_part_le_tsum_sum_part (hf : IsSubadditive f) (hf' : f ∅ = 0) {s : ℕ → Set X}
+--     (hs : ∀ i, MeasurableSet (s i)) (hs' : Pairwise (Disjoint on s)) {Q : Finset (Set X)}
+--     (hQ : IsSubpartition (⋃ i, s i) Q) :
+--     ∑ q ∈ Q, f q ≤ ∑' i, ∑ p ∈ (IsSubpartition.restriction (s i) Q), f p := by
+--   classical
+--   let P (i : ℕ) := IsSubpartition.restriction (s i) Q
+--   calc ∑ q ∈ Q, f q
+--     _ = ∑ q ∈ Q, f (⋃ i, q ∩ s i) := ?_
+--     _ ≤ ∑ q ∈ Q, ∑' i, f (q ∩ s i) := ?_
+--     _ = ∑' i, ∑ q ∈ Q, f (q ∩ s i) := ?_
+--     _ ≤ ∑' i, ∑ p ∈ (P i), f p := ?_
+--   · -- Each `q` is equal to the union of `q ∩ s i`.
+--     -- TO DO: This only needs one direction of the argument since subadditivity implies monotone.
+--     suffices h : ∀ q ∈ Q, q = ⋃ i, q ∩ s i by
+--       exact Finset.sum_congr rfl (fun q hq ↦ (by simp [← h q hq]))
+--     intro q hq
+--     ext x
+--     refine ⟨fun hx ↦ ?_, by simp_all⟩
+--     obtain ⟨_, hs⟩ := (hQ.1 q hq) hx
+--     obtain ⟨i, _⟩ := Set.mem_range.mp hs.1
+--     simp_all [Set.mem_iUnion_of_mem i]
+--   · -- Subadditivity of `f` since the `s i` are pairwise disjoint.
+--     suffices h : ∀ p ∈ Q, f (⋃ i, p ∩ s i) ≤ ∑' (i : ℕ), f (p ∩ s i) by exact Finset.sum_le_sum h
+--     intro p hp
+--     refine hf (fun (i : ℕ) ↦ p ∩ s i) (fun i ↦ ?_) ?_
+--     · exact MeasurableSet.inter (hQ.measurableSet p hp) (hs i)
+--     · refine (Symmetric.pairwise_on (fun ⦃x y⦄ a ↦ Disjoint.symm a) fun i ↦ p ∩ s i).mpr ?_
+--       intro _ _ _
+--       exact Disjoint.inter_left' p (Disjoint.inter_right' p (hs' (by omega)))
+--   · -- Swapping the order of the sum.
+--     refine Eq.symm (Summable.tsum_finsetSum (fun _ _ ↦ ENNReal.summable))
+--   · -- By defintion of the restricted subpartition
+--     refine ENNReal.tsum_le_tsum (fun i ↦ ?_)
+--     calc ∑ q ∈ Q, f (q ∩ s i)
+--       _ = ∑ p ∈ (Finset.image (fun q ↦ q ∩ s i) Q), f p := by
+--         refine Eq.symm (Finset.sum_image_of_disjoint (by simp [hf']) ?_)
+--         intro _ hp _ hq hpq
+--         exact Disjoint.inter_left (s i) (Disjoint.inter_right (s i) (hQ.disjoint hp hq hpq))
+--       _ ≤  ∑ p ∈ P i, f p := by
+--         refine Finset.sum_le_sum_of_ne_zero (fun p hp hp' ↦ ?_)
+--         obtain hc | hc : p = ∅ ∨ ¬p = ∅ := eq_or_ne p ∅
+--         · simp [hc, hf'] at hp'
+--         · simp only [P, IsSubpartition.restriction, Finset.mem_filter, Finset.mem_image]
+--           obtain ⟨q, hq, hq'⟩ := Finset.mem_image.mp hp
+--           refine ⟨⟨q, hq, hq'⟩, ?_⟩
+--           exact Set.nonempty_iff_ne_empty.mpr hc
 
 lemma sum_le_tsum' {f : ℕ → ℝ≥0∞} {a : ℝ≥0∞}
     (h : ∀ b < a, ∃ n, b < ∑ i ∈ Finset.range n, f i) : a ≤ ∑' i, f i := by
@@ -268,24 +267,25 @@ open Classical in
 lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s)) (hf : IsSubadditive f) (hf' : f ∅ = 0) :
     preVariation f (⋃ i, s i) ≤ ∑' i, preVariation f (s i) := by
-  refine sum_le_tsum' fun b hb ↦ ?_
-  simp only [preVariation, MeasurableSet.iUnion hs, reduceIte, lt_iSup_iff] at hb
-  obtain ⟨Q, hQ, hbQ⟩ := hb
-  -- Take the subpartitions defined as intersection of `Q` and `s i`.
-  let P (i : ℕ) := IsSubpartition.restriction (s i) Q
-  have hP (i : ℕ) : IsSubpartition (s i) (P i) :=
-    IsSubpartition.restriction_of_measurableSet hQ (hs i)
-  have hP' := calc
-    b < ∑ q ∈ Q, f q := hbQ
-    _ ≤ ∑' i, ∑ p ∈ (P i), f p := by exact sum_part_le_tsum_sum_part f hf hf' hs hs' hQ
-  have := tendsto_nat_tsum fun i ↦ ∑ p ∈ (P i), f p
-  obtain ⟨n, hn, _⟩ := (((tendsto_order.mp this).1 b hP').and (Filter.Ici_mem_atTop 1)).exists
-  use n
-  calc
-    b < ∑ i ∈ Finset.range n, ∑ p ∈ (P i), f p := hn
-    _ ≤ ∑ i ∈ Finset.range n, preVariation f (s i) := by
-      gcongr with i hi
-      exact sum_le f (hs i) (hP i)
+  -- refine sum_le_tsum' fun b hb ↦ ?_
+  -- simp  [preVariation, MeasurableSet.iUnion hs, reduceIte, lt_iSup_iff] at hb
+  -- obtain ⟨Q, hQ⟩ := hb
+  -- -- Take the subpartitions defined as intersection of `Q` and `s i`.
+  -- let P (i : ℕ) := IsSubpartition.restriction (s i) Q
+  -- have hP (i : ℕ) : IsSubpartition (s i) (P i) :=
+  --   IsSubpartition.restriction_of_measurableSet hQ (hs i)
+  -- have hP' := calc
+  --   b < ∑ q ∈ Q, f q := hbQ
+  --   _ ≤ ∑' i, ∑ p ∈ (P i), f p := by exact sum_part_le_tsum_sum_part f hf hf' hs hs' hQ
+  -- have := tendsto_nat_tsum fun i ↦ ∑ p ∈ (P i), f p
+  -- obtain ⟨n, hn, _⟩ := (((tendsto_order.mp this).1 b hP').and (Filter.Ici_mem_atTop 1)).exists
+  -- use n
+  -- calc
+  --   b < ∑ i ∈ Finset.range n, ∑ p ∈ (P i), f p := hn
+  --   _ ≤ ∑ i ∈ Finset.range n, preVariation f (s i) := by
+  --     gcongr with i hi
+  --     exact sum_le f (hs i) (hP i)
+  sorry
 
 /-- Additivity of `variation_aux` for disjoint measurable sets. -/
 lemma iUnion (hf : IsSubadditive f) (hf' : f ∅ = 0) (s : ℕ → Set X)
