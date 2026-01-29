@@ -8,7 +8,6 @@ module
 public import Mathlib.Analysis.Normed.Group.InfiniteSum
 public import Mathlib.MeasureTheory.VectorMeasure.Basic
 public import Mathlib.Order.Partition.Finpartition
-public import Mathlib.Tactic
 
 /-!
 # Total variation for vector-valued measures
@@ -19,7 +18,7 @@ in particular, any `NormedAddCommGroup`.
 Given a vector-valued measure `μ` we consider the problem of finding a countably additive function
 `f` such that, for any set `E`, `‖μ(E)‖ ≤ f(E)`. This suggests defining `f(E)` as the supremum over
 partitions `{Eᵢ}` of `E`, of the quantity `∑ᵢ, ‖μ(Eᵢ)‖`. Indeed any solution of the problem must be
-not less than this function. It turns out that this function actually is a measure.
+not less than this function. It turns out that this function is a measure.
 
 ## Main definition
 
@@ -28,8 +27,9 @@ not less than this function. It turns out that this function actually is a measu
 ## Implementation notes
 
 Variation is defined as an `ℝ≥0∞`-valued `VectorMeasure` rather than as a `Measure`, this is
-somewhat natural since we start with `VectorMeasure`. The corresponding `Measure` is given by
-`VectorMeasure.ennrealToMeasure`.
+somewhat natural since we start with `VectorMeasure`. This quantity is called
+`VectorMeasure.ennrealVariation` and the corresponding `Measure`, given by
+`VectorMeasure.ennrealToMeasure`, is called `VectorMeasure.ennrealVariation`.
 
 Variation is defined for signed measures in `MeasureTheory.SignedMeasure.totalVariation`. This
 definition uses the Hahn–Jordan decomposition of a signed measure. However this construction doesn't
@@ -49,31 +49,12 @@ of `s ↦ ‖μ s‖ₑ`.
 
 @[expose] public section
 
-open MeasureTheory BigOperators ENNReal Function
-
 /-!
 ## Definitions to be moved to other files
 
 The following definitions and lemmas are placed here temporarily and will eventually be moved
 to their appropriate locations in the library.
 -/
-
-/-!
-### To be moved to Order/Lattice
--/
-
-namespace Disjoint
-
-/-- If `a` and `b` are disjoint, then `· ⊓ c` is injective on `{a, b}` when restricted to
-elements where `· ⊓ c ≠ ⊥`. -/
-lemma inf_right_injective {α : Type*} [Lattice α] [OrderBot α] {a b c : α}
-    (hdisj : Disjoint a b) (_ha : a ⊓ c ≠ ⊥) (hb : b ⊓ c ≠ ⊥) (hab : a ⊓ c = b ⊓ c) : a = b := by
-  by_contra hne
-  have : a ⊓ c ⊓ (b ⊓ c) = ⊥ := disjoint_iff.mp (hdisj.mono inf_le_left inf_le_left)
-  rw [hab, inf_idem] at this
-  exact hb this
-
-end Disjoint
 
 /-!
 ### To be moved to Order/Partition/Finpartition
@@ -188,8 +169,9 @@ lemma sum_restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq �
       x ⊓ b = y ⊓ b → x = y := fun x hx y hy hxy => by
     simp only [Finset.mem_filter] at hx hy
     by_contra hne
-    have hdisj : Disjoint x y := P.disjoint hx.1 hy.1 hne
-    exact hne <| hdisj.inf_right_injective hx.2 hy.2 hxy
+    have hdisj : Disjoint (x ⊓ b) (y ⊓ b) := (P.disjoint hx.1 hy.1 hne).mono inf_le_left inf_le_left
+    rw [hxy] at hdisj
+    exact hy.2 (disjoint_self.mp hdisj)
   have heq : (P.parts.image (· ⊓ b)).erase ⊥ = (P.parts.filter (· ⊓ b ≠ ⊥)).image (· ⊓ b) := by
     ext p; simp only [Finset.mem_erase, ne_eq, Finset.mem_image, Finset.mem_filter]
     constructor
@@ -213,6 +195,7 @@ variable {X : Type*} [MeasurableSpace X]
 lemma MeasurableSet.subtype_bot_eq :
     (⟨∅, .empty⟩ : Subtype (MeasurableSet (α := X))) = ⊥ := rfl
 
+open MeasureTheory BigOperators ENNReal Function
 
 namespace MeasureTheory
 
@@ -238,7 +221,7 @@ noncomputable def preVariation (s : Set X) : ℝ≥0∞ :=
 
 end
 
-namespace preVariation
+namespace VectorMeasure.preVariation
 
 variable (f : Set X → ℝ≥0∞)
 
@@ -402,7 +385,7 @@ lemma iUnion (hf : IsSubadditive f) (hf' : f ∅ = 0) (s : ℕ → Set X)
   · exact sum_le_preVariation_iUnion f hs hs'
   · exact iUnion_le f hs hs' hf hf'
 
-end preVariation
+end VectorMeasure.preVariation
 
 /-!
 ## Definition of variation
