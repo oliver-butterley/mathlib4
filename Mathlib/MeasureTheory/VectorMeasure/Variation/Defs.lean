@@ -51,6 +51,169 @@ of `s ↦ ‖μ s‖ₑ`.
 
 open MeasureTheory BigOperators ENNReal Function
 
+/-!
+## Definitions to be moved to other files
+
+The following definitions and lemmas are placed here temporarily and will eventually be moved
+to their appropriate locations in the library.
+-/
+
+/-!
+### To be moved to Order/Lattice
+-/
+
+namespace Disjoint
+
+/-- If `a` and `b` are disjoint, then `· ⊓ c` is injective on `{a, b}` when restricted to
+elements where `· ⊓ c ≠ ⊥`. -/
+lemma inf_right_injective {α : Type*} [Lattice α] [OrderBot α] {a b c : α}
+    (hdisj : Disjoint a b) (_ha : a ⊓ c ≠ ⊥) (hb : b ⊓ c ≠ ⊥) (hab : a ⊓ c = b ⊓ c) : a = b := by
+  by_contra hne
+  have : a ⊓ c ⊓ (b ⊓ c) = ⊥ := disjoint_iff.mp (hdisj.mono inf_le_left inf_le_left)
+  rw [hab, inf_idem] at this
+  exact hb this
+
+end Disjoint
+
+/-!
+### To be moved to Order/Partition/Finpartition
+-/
+
+namespace Finpartition
+
+instance instNonempty {α : Type*} [Lattice α] [OrderBot α] (a : α) :
+    Nonempty (Finpartition a) := by
+  by_cases h : a = ⊥
+  · rw [h]; exact ⟨Finpartition.empty α⟩
+  · exact ⟨Finpartition.indiscrete h⟩
+
+/-- Extend a partition of `a` to a partition of `b` when `a ≤ b`, by adding `b \ a` as a `part`. -/
+def extendOfLE {α : Type*} [GeneralizedBooleanAlgebra α]
+    [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a ≤ b) : Finpartition b :=
+  if hr : b \ a = ⊥ then (le_antisymm (sdiff_eq_bot_iff.mp hr) hab) ▸ P
+    else P.extend hr disjoint_sdiff_self_right (sup_sdiff_cancel_right hab)
+
+lemma parts_extendOfLE_of_eq {α : Type*} [GeneralizedBooleanAlgebra α]
+    [DecidableEq α] {a : α} (P : Finpartition a) :
+    (P.extendOfLE (a := a) (b := a) (by rfl)).parts = P.parts := by simp [extendOfLE]
+
+lemma parts_extendOfLE_of_lt {α : Type*} [GeneralizedBooleanAlgebra α]
+    [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a < b) :
+    (P.extendOfLE (le_of_lt hab)).parts = insert (b \ a) P.parts := by
+  simp [extendOfLE, Std.not_le_of_gt hab]
+
+lemma parts_subset_extendOfLE {α : Type*} [GeneralizedBooleanAlgebra α]
+    [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a ≤ b) :
+    P.parts ⊆ (P.extendOfLE hab).parts := by
+  simp only [Finpartition.extendOfLE]
+  split_ifs with hr
+  · cases le_antisymm (sdiff_eq_bot_iff.mp hr) hab; rfl
+  · exact Finset.subset_insert _ _
+
+/-- Construct a `Finpartition` of `T.sup id` from a finset `T` of pairwise disjoint elements.
+Any `⊥` elements in `T` are erased since they don't contribute to the supremum. -/
+@[simps]
+def ofPairwiseDisjoint {α : Type*} [DistribLattice α] [OrderBot α]
+    [DecidableEq α] (T : Finset α) (hT : (T : Set α).PairwiseDisjoint id) :
+    Finpartition (T.sup id) where
+  parts := T.erase ⊥
+  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun _ ha _ hb hab =>
+    hT (Finset.erase_subset _ _ ha) (Finset.erase_subset _ _ hb) hab
+  sup_parts := Finset.sup_erase_bot T
+  bot_notMem := Finset.notMem_erase _ _
+
+/-- Merge a family of partitions of pairwise disjoint elements into a partition of their sup.
+Similar to `Finpartition.bind`, but combines partitions of different elements rather than
+refining a single partition. -/
+def biUnion {ι α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {I : Finset ι} {a : ι → α} (P : ∀ i, Finpartition (a i))
+    (ha : Set.PairwiseDisjoint (I : Set ι) a) : Finpartition (I.sup a) where
+  parts := I.biUnion fun i => (P i).parts
+  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun x hx y hy hxy => by
+    simp only [Finset.coe_biUnion, Set.mem_iUnion, Finset.mem_coe] at hx hy
+    obtain ⟨i, hi, hxi⟩ := hx
+    obtain ⟨j, hj, hyj⟩ := hy
+    by_cases hij : i = j
+    · subst hij; exact (P i).disjoint hxi hyj fun h => hxy (h ▸ rfl)
+    · exact (ha hi hj hij).mono ((P i).le hxi) ((P j).le hyj)
+  sup_parts := by
+    rw [Finset.sup_biUnion]
+    exact Finset.sup_congr rfl fun i _ => (P i).sup_parts
+  bot_notMem := by
+    rw [Finset.mem_biUnion]; push_neg; exact fun i _ => (P i).bot_notMem
+
+/-- The sum over a merged partition equals the sum of sums over component partitions. -/
+lemma sum_biUnion {ι α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {I : Finset ι} {a : ι → α} (P : ∀ i, Finpartition (a i))
+    (ha : Set.PairwiseDisjoint (I : Set ι) a) {M : Type*} [AddCommMonoid M] (f : α → M) :
+    ∑ p ∈ (Finpartition.biUnion P ha).parts, f p = ∑ i ∈ I, ∑ p ∈ (P i).parts, f p := by
+  change ∑ p ∈ I.biUnion (fun i => (P i).parts), f p = _
+  refine Finset.sum_biUnion fun i hi j hj hij => ?_
+  rw [Function.onFun, Finset.disjoint_left]
+  intro p hpi hpj
+  have hp_disj : Disjoint p p := (ha hi hj hij).mono ((P i).le hpi) ((P j).le hpj)
+  exact (P i).ne_bot hpi (disjoint_self.mp hp_disj)
+
+/-- Restrict a partition of `a` to a sub-element `b ≤ a` by intersecting each part with `b`. -/
+def restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {a : α} (P : Finpartition a) (b : α) (hb : b ≤ a) : Finpartition b where
+  parts := (P.parts.image (· ⊓ b)).erase ⊥
+  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun x hx y hy hxy => by
+    simp only [Finset.coe_erase, Finset.coe_image, Set.mem_diff, Set.mem_image,
+               Set.mem_singleton_iff] at hx hy
+    obtain ⟨⟨px, hpx, rfl⟩, _⟩ := hx
+    obtain ⟨⟨py, hpy, rfl⟩, _⟩ := hy
+    simp only [Function.onFun, id_eq]
+    exact (P.disjoint hpx hpy fun h => hxy (h ▸ rfl)).mono inf_le_left inf_le_left
+  sup_parts := by
+    simp only [Finset.sup_erase_bot, Finset.sup_image, Function.id_comp,
+               (Finset.sup_inf_distrib_right ..).symm]
+    have h : P.parts.sup (fun x => x) = a := P.sup_parts
+    rw [h, inf_eq_right.mpr hb]
+  bot_notMem := Finset.notMem_erase _ _
+
+@[simp]
+lemma restrict_parts {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {a : α} (P : Finpartition a) (b : α) (hb : b ≤ a) :
+    (P.restrict b hb).parts = (P.parts.image (· ⊓ b)).erase ⊥ := rfl
+
+/-- The sum over restricted partition parts equals the sum over original parts with `f (· ⊓ b)`,
+provided `f ⊥ = 0` (so bottom terms don't contribute). -/
+lemma sum_restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
+    {a : α} (P : Finpartition a) {b : α} (hb : b ≤ a) {M : Type*} [AddCommMonoid M]
+    (f : α → M) (hf : f ⊥ = 0) :
+    ∑ p ∈ (P.restrict b hb).parts, f p = ∑ q ∈ P.parts, f (q ⊓ b) := by
+  simp only [restrict_parts]
+  have hinj : ∀ x ∈ P.parts.filter (· ⊓ b ≠ ⊥), ∀ y ∈ P.parts.filter (· ⊓ b ≠ ⊥),
+      x ⊓ b = y ⊓ b → x = y := fun x hx y hy hxy => by
+    simp only [Finset.mem_filter] at hx hy
+    by_contra hne
+    have hdisj : Disjoint x y := P.disjoint hx.1 hy.1 hne
+    exact hne <| hdisj.inf_right_injective hx.2 hy.2 hxy
+  have heq : (P.parts.image (· ⊓ b)).erase ⊥ = (P.parts.filter (· ⊓ b ≠ ⊥)).image (· ⊓ b) := by
+    ext p; simp only [Finset.mem_erase, ne_eq, Finset.mem_image, Finset.mem_filter]
+    constructor
+    · rintro ⟨hp, q, hq, rfl⟩; exact ⟨q, ⟨hq, hp⟩, rfl⟩
+    · rintro ⟨q, ⟨hq, hp⟩, rfl⟩; exact ⟨hp, q, hq, rfl⟩
+  rw [heq, Finset.sum_image hinj, ← Finset.sum_filter_add_sum_filter_not P.parts (· ⊓ b ≠ ⊥)]
+  have hz : ∑ x ∈ P.parts.filter (¬ · ⊓ b ≠ ⊥), f (x ⊓ b) = 0 := Finset.sum_eq_zero fun x hx => by
+    simp only [ne_eq, Decidable.not_not, Finset.mem_filter] at hx
+    rw [hx.2, hf]
+  rw [hz, add_zero]
+
+end Finpartition
+
+/-!
+### To be moved to MeasurableSpace/MeasurablyGenerated/?
+-/
+
+variable {X : Type*} [MeasurableSpace X]
+
+@[simp]
+lemma MeasurableSet.subtype_bot_eq :
+    (⟨∅, .empty⟩ : Subtype (MeasurableSet (α := X))) = ⊥ := rfl
+
+
 namespace MeasureTheory
 
 /-!
@@ -63,7 +226,7 @@ defined is an `ℝ≥0∞`-valued measure.
 
 section
 
-variable {X : Type*} [MeasurableSpace X] (f : Set X → ℝ≥0∞)
+variable (f : Set X → ℝ≥0∞)
 
 open Classical in
 /-- If `s` is measurable then `preVariation s f` is the supremum over partitions `P` of `s` of the
@@ -77,12 +240,7 @@ end
 
 namespace preVariation
 
-variable {X : Type*} [MeasurableSpace X] (f : Set X → ℝ≥0∞)
-
--- move to MeasurablyGenerated
-@[simp]
-lemma set_subtype_bot_eq {α : Type*} [MeasurableSpace α] :
-  (⟨∅, .empty⟩ : Subtype (MeasurableSet (α := X))) = ⊥ := rfl
+variable (f : Set X → ℝ≥0∞)
 
 /-- `preVariation` of the empty set is equal to zero. -/
 lemma empty : preVariation f ∅ = 0 := by simp [preVariation]
@@ -125,13 +283,6 @@ lemma exists_isSubpartition_sum_gt {s : Set X} (hs : MeasurableSet s) {a : ℝ�
     a < ∑ p ∈ P.parts, f p := by
   simp_all [preVariation, lt_iSup_iff]
 
--- Move to Mathlib/Order/Partition/Finpartition.lean
-instance _root_.Finpartition.instNonempty {α : Type*} [Lattice α] [OrderBot α] (a : α) :
-    Nonempty (Finpartition a) := by
-  by_cases h : a = ⊥
-  · rw [h]; exact ⟨Finpartition.empty α⟩
-  · exact ⟨Finpartition.indiscrete h⟩
-
 lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNReal} (hε : 0 < ε)
     (h : preVariation f s ≠ ⊤) :
     ∃ P : Finpartition (⟨s, hs⟩ : Subtype MeasurableSet),
@@ -153,135 +304,6 @@ lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNRe
         exact (ENNReal.add_le_add_iff_right coe_ne_top).mpr (le_of_lt hP)
       _ ≤ ∑ p ∈ P.parts, f p + ε := by gcongr
   · simp [*]
-
-open Finpartition
--- move to Finpartition file
-/-- Extend a partition of `a` to a partition of `b` when `a ≤ b`, by adding `b \ a` as a `part`. -/
-def _root_.Finpartition.extendOfLE {α : Type*} [GeneralizedBooleanAlgebra α]
-    [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a ≤ b) : Finpartition b :=
-  if hr : b \ a = ⊥ then (le_antisymm (sdiff_eq_bot_iff.mp hr) hab) ▸ P
-    else P.extend hr disjoint_sdiff_self_right (sup_sdiff_cancel_right hab)
-
-lemma _root_.Finpartition.parts_extendOfLE_of_eq {α : Type*} [GeneralizedBooleanAlgebra α]
-    [DecidableEq α] {a : α} (P : Finpartition a) :
-    (P.extendOfLE (a := a) (b := a) (by rfl)).parts = P.parts := by simp [extendOfLE]
-
-lemma _root_.Finpartition.parts_extendOfLE_of_lt {α : Type*} [GeneralizedBooleanAlgebra α]
-    [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a < b) :
-    (P.extendOfLE (le_of_lt hab)).parts = insert (b \ a) P.parts := by
-  simp [extendOfLE, Std.not_le_of_gt hab]
-
-lemma _root_.Finpartition.parts_subset_extendOfLE {α : Type*} [GeneralizedBooleanAlgebra α]
-    [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a ≤ b) :
-    P.parts ⊆ (P.extendOfLE hab).parts := by
-  simp only [Finpartition.extendOfLE]
-  split_ifs with hr
-  · cases le_antisymm (sdiff_eq_bot_iff.mp hr) hab; rfl
-  · exact Finset.subset_insert _ _
-
--- move to Finpartition file
-/-- Construct a `Finpartition` of `T.sup id` from a finset `T` of pairwise disjoint elements.
-Any `⊥` elements in `T` are erased since they don't contribute to the supremum. -/
-@[simps]
-def _root_.Finpartition.ofPairwiseDisjoint {α : Type*} [DistribLattice α] [OrderBot α]
-    [DecidableEq α] (T : Finset α) (hT : (T : Set α).PairwiseDisjoint id) :
-    Finpartition (T.sup id) where
-  parts := T.erase ⊥
-  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun _ ha _ hb hab =>
-    hT (Finset.erase_subset _ _ ha) (Finset.erase_subset _ _ hb) hab
-  sup_parts := Finset.sup_erase_bot T
-  bot_notMem := Finset.notMem_erase _ _
-
--- move to Finpartition file
-/-- Merge a family of partitions of pairwise disjoint elements into a partition of their sup.
-Similar to `Finpartition.bind`, but combines partitions of different elements rather than
-refining a single partition. -/
-def _root_.Finpartition.biUnion {ι α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
-    {I : Finset ι} {a : ι → α} (P : ∀ i, Finpartition (a i))
-    (ha : Set.PairwiseDisjoint (I : Set ι) a) : Finpartition (I.sup a) where
-  parts := I.biUnion fun i => (P i).parts
-  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun x hx y hy hxy => by
-    simp only [Finset.coe_biUnion, Set.mem_iUnion, Finset.mem_coe] at hx hy
-    obtain ⟨i, hi, hxi⟩ := hx
-    obtain ⟨j, hj, hyj⟩ := hy
-    by_cases hij : i = j
-    · subst hij; exact (P i).disjoint hxi hyj fun h => hxy (h ▸ rfl)
-    · exact (ha hi hj hij).mono ((P i).le hxi) ((P j).le hyj)
-  sup_parts := by
-    rw [Finset.sup_biUnion]
-    exact Finset.sup_congr rfl fun i _ => (P i).sup_parts
-  bot_notMem := by
-    rw [Finset.mem_biUnion]; push_neg; exact fun i _ => (P i).bot_notMem
-
-/-- The sum over a merged partition equals the sum of sums over component partitions. -/
-lemma _root_.Finpartition.sum_biUnion {ι α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
-    {I : Finset ι} {a : ι → α} (P : ∀ i, Finpartition (a i))
-    (ha : Set.PairwiseDisjoint (I : Set ι) a) {M : Type*} [AddCommMonoid M] (f : α → M) :
-    ∑ p ∈ (Finpartition.biUnion P ha).parts, f p = ∑ i ∈ I, ∑ p ∈ (P i).parts, f p := by
-  change ∑ p ∈ I.biUnion (fun i => (P i).parts), f p = _
-  refine Finset.sum_biUnion fun i hi j hj hij => ?_
-  rw [Function.onFun, Finset.disjoint_left]
-  intro p hpi hpj
-  have hp_disj : Disjoint p p := (ha hi hj hij).mono ((P i).le hpi) ((P j).le hpj)
-  exact (P i).ne_bot hpi (disjoint_self.mp hp_disj)
-
--- move to Finpartition file
-/-- Restrict a partition of `a` to a sub-element `b ≤ a` by intersecting each part with `b`. -/
-def _root_.Finpartition.restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
-    {a : α} (P : Finpartition a) (b : α) (hb : b ≤ a) : Finpartition b where
-  parts := (P.parts.image (· ⊓ b)).erase ⊥
-  supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun x hx y hy hxy => by
-    simp only [Finset.coe_erase, Finset.coe_image, Set.mem_diff, Set.mem_image,
-               Set.mem_singleton_iff] at hx hy
-    obtain ⟨⟨px, hpx, rfl⟩, _⟩ := hx
-    obtain ⟨⟨py, hpy, rfl⟩, _⟩ := hy
-    simp only [Function.onFun, id_eq]
-    exact (P.disjoint hpx hpy fun h => hxy (h ▸ rfl)).mono inf_le_left inf_le_left
-  sup_parts := by
-    simp only [Finset.sup_erase_bot, Finset.sup_image, Function.id_comp,
-               (Finset.sup_inf_distrib_right ..).symm]
-    have h : P.parts.sup (fun x => x) = a := P.sup_parts
-    rw [h, inf_eq_right.mpr hb]
-  bot_notMem := Finset.notMem_erase _ _
-
-@[simp]
-lemma _root_.Finpartition.restrict_parts {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
-    {a : α} (P : Finpartition a) (b : α) (hb : b ≤ a) :
-    (P.restrict b hb).parts = (P.parts.image (· ⊓ b)).erase ⊥ := rfl
-
--- move to Order/Lattice
-/-- If `a` and `b` are disjoint, then `· ⊓ c` is injective on `{a, b}` when restricted to
-elements where `· ⊓ c ≠ ⊥`. -/
-lemma _root_.Disjoint.inf_right_injective {α : Type*} [Lattice α] [OrderBot α] {a b c : α}
-    (hdisj : Disjoint a b) (_ha : a ⊓ c ≠ ⊥) (hb : b ⊓ c ≠ ⊥) (hab : a ⊓ c = b ⊓ c) : a = b := by
-  by_contra hne
-  have : a ⊓ c ⊓ (b ⊓ c) = ⊥ := disjoint_iff.mp (hdisj.mono inf_le_left inf_le_left)
-  rw [hab, inf_idem] at this
-  exact hb this
-
-/-- The sum over restricted partition parts equals the sum over original parts with `f (· ⊓ b)`,
-provided `f ⊥ = 0` (so bottom terms don't contribute). -/
-lemma _root_.Finpartition.sum_restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
-    {a : α} (P : Finpartition a) {b : α} (hb : b ≤ a) {M : Type*} [AddCommMonoid M]
-    (f : α → M) (hf : f ⊥ = 0) :
-    ∑ p ∈ (P.restrict b hb).parts, f p = ∑ q ∈ P.parts, f (q ⊓ b) := by
-  simp only [restrict_parts]
-  have hinj : ∀ x ∈ P.parts.filter (· ⊓ b ≠ ⊥), ∀ y ∈ P.parts.filter (· ⊓ b ≠ ⊥),
-      x ⊓ b = y ⊓ b → x = y := fun x hx y hy hxy => by
-    simp only [Finset.mem_filter] at hx hy
-    by_contra hne
-    have hdisj : Disjoint x y := P.disjoint hx.1 hy.1 hne
-    exact hne <| hdisj.inf_right_injective hx.2 hy.2 hxy
-  have heq : (P.parts.image (· ⊓ b)).erase ⊥ = (P.parts.filter (· ⊓ b ≠ ⊥)).image (· ⊓ b) := by
-    ext p; simp only [Finset.mem_erase, ne_eq, Finset.mem_image, Finset.mem_filter]
-    constructor
-    · rintro ⟨hp, q, hq, rfl⟩; exact ⟨q, ⟨hq, hp⟩, rfl⟩
-    · rintro ⟨q, ⟨hq, hp⟩, rfl⟩; exact ⟨hp, q, hq, rfl⟩
-  rw [heq, Finset.sum_image hinj, ← Finset.sum_filter_add_sum_filter_not P.parts (· ⊓ b ≠ ⊥)]
-  have hz : ∑ x ∈ P.parts.filter (¬ · ⊓ b ≠ ⊥), f (x ⊓ b) = 0 := Finset.sum_eq_zero fun x hx => by
-    simp only [ne_eq, Decidable.not_not, Finset.mem_filter] at hx
-    rw [hx.2, hf]
-  rw [hz, add_zero]
 
 open Classical in
 /-- The sup of measurable set subtypes over a finset equals the biUnion of the underlying sets. -/
