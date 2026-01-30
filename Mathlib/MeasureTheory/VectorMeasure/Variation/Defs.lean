@@ -296,7 +296,7 @@ lemma exists_Finpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNReal
       _ ≤ ∑ p ∈ P.parts, f p + ε := by gcongr
   · simp [*]
 
--- Does this belong somewhere?
+-- Perhaps goes in MeasurableSpace.Basic? Or just a private helper here?
 open Classical in
 /-- The sup of measurable set subtypes over a finset equals the biUnion of the underlying sets. -/
 lemma Finset.sup_measurableSetSubtype_eq_biUnion {ι : Type*}
@@ -354,6 +354,7 @@ above by the sum of the values assigned to the individual sets. -/
 def IsSubadditive (f : Set X → ℝ≥0∞) : Prop := ∀ (s : ℕ → Set X), (∀ i, MeasurableSet (s i)) →
   Pairwise (Disjoint on s) → f (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), f (s i)
 
+-- This is strictly weaker than `iUnion` and so shouldn't be public or could be inlined in `iUnion`
 open Classical in
 lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s)) (hf : IsSubadditive f) (hf' : f ∅ = 0) :
