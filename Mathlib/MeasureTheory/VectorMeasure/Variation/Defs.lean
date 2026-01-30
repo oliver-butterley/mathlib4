@@ -74,10 +74,12 @@ def extendOfLE {α : Type*} [GeneralizedBooleanAlgebra α]
   if hr : b \ a = ⊥ then (le_antisymm (sdiff_eq_bot_iff.mp hr) hab) ▸ P
     else P.extend hr disjoint_sdiff_self_right (sup_sdiff_cancel_right hab)
 
+-- We don't need the following here but perhaps it is good to add this with the new def?
 lemma parts_extendOfLE_of_eq {α : Type*} [GeneralizedBooleanAlgebra α]
     [DecidableEq α] {a : α} (P : Finpartition a) :
     (P.extendOfLE (a := a) (b := a) (by rfl)).parts = P.parts := by simp [extendOfLE]
 
+-- We don't need the following here but perhaps it is good to add this with the new def?
 lemma parts_extendOfLE_of_lt {α : Type*} [GeneralizedBooleanAlgebra α]
     [DecidableEq α] {a b : α} (P : Finpartition a) (hab : a < b) :
     (P.extendOfLE (le_of_lt hab)).parts = insert (b \ a) P.parts := by
@@ -91,18 +93,20 @@ lemma parts_subset_extendOfLE {α : Type*} [GeneralizedBooleanAlgebra α]
   · cases le_antisymm (sdiff_eq_bot_iff.mp hr) hab; rfl
   · exact Finset.subset_insert _ _
 
+-- Ddded this definition since it seemed the useful thing but currently this is not used here
 /-- Construct a `Finpartition` of `T.sup id` from a finset `T` of pairwise disjoint elements.
-Any `⊥` elements in `T` are erased since they don't contribute to the supremum. -/
+Any `⊥` elements in `T` are erased. -/
 @[simps]
-def ofPairwiseDisjoint {α : Type*} [DistribLattice α] [OrderBot α]
-    [DecidableEq α] (T : Finset α) (hT : (T : Set α).PairwiseDisjoint id) :
-    Finpartition (T.sup id) where
+def ofPairwiseDisjoint {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α] (T : Finset α)
+    (hT : (T : Set α).PairwiseDisjoint id) : Finpartition (T.sup id) where
   parts := T.erase ⊥
   supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun _ ha _ hb hab =>
     hT (Finset.erase_subset _ _ ha) (Finset.erase_subset _ _ hb) hab
   sup_parts := Finset.sup_erase_bot T
   bot_notMem := Finset.notMem_erase _ _
 
+-- Despite being similar to `Finpartition.bind` this is much more convenient here.
+-- Is there a better name for this?
 /-- Merge a family of partitions of pairwise disjoint elements into a partition of their sup.
 Similar to `Finpartition.bind`, but combines partitions of different elements rather than
 refining a single partition. -/
@@ -141,22 +145,17 @@ def restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
   parts := (P.parts.image (· ⊓ b)).erase ⊥
   supIndep := Finset.supIndep_iff_pairwiseDisjoint.mpr fun x hx y hy hxy => by
     simp only [Finset.coe_erase, Finset.coe_image, Set.mem_diff, Set.mem_image,
-               Set.mem_singleton_iff] at hx hy
+      Set.mem_singleton_iff] at hx hy
     obtain ⟨⟨px, hpx, rfl⟩, _⟩ := hx
     obtain ⟨⟨py, hpy, rfl⟩, _⟩ := hy
     simp only [Function.onFun, id_eq]
     exact (P.disjoint hpx hpy fun h => hxy (h ▸ rfl)).mono inf_le_left inf_le_left
   sup_parts := by
     simp only [Finset.sup_erase_bot, Finset.sup_image, Function.id_comp,
-               (Finset.sup_inf_distrib_right ..).symm]
-    have h : P.parts.sup (fun x => x) = a := P.sup_parts
-    rw [h, inf_eq_right.mpr hb]
+      (Finset.sup_inf_distrib_right ..).symm]
+    have : P.parts.sup (fun x => x) = a := P.sup_parts
+    rw [this, inf_eq_right.mpr hb]
   bot_notMem := Finset.notMem_erase _ _
-
-@[simp]
-lemma restrict_parts {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
-    {a : α} (P : Finpartition a) (b : α) (hb : b ≤ a) :
-    (P.restrict b hb).parts = (P.parts.image (· ⊓ b)).erase ⊥ := rfl
 
 /-- The sum over restricted partition parts equals the sum over original parts with `f (· ⊓ b)`,
 provided `f ⊥ = 0` (so bottom terms don't contribute). -/
@@ -164,7 +163,6 @@ lemma sum_restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq �
     {a : α} (P : Finpartition a) {b : α} (hb : b ≤ a) {M : Type*} [AddCommMonoid M]
     (f : α → M) (hf : f ⊥ = 0) :
     ∑ p ∈ (P.restrict b hb).parts, f p = ∑ q ∈ P.parts, f (q ⊓ b) := by
-  simp only [restrict_parts]
   have hinj : ∀ x ∈ P.parts.filter (· ⊓ b ≠ ⊥), ∀ y ∈ P.parts.filter (· ⊓ b ≠ ⊥),
       x ⊓ b = y ⊓ b → x = y := fun x hx y hy hxy => by
     simp only [Finset.mem_filter] at hx hy
@@ -177,20 +175,18 @@ lemma sum_restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq �
     constructor
     · rintro ⟨hp, q, hq, rfl⟩; exact ⟨q, ⟨hq, hp⟩, rfl⟩
     · rintro ⟨q, ⟨hq, hp⟩, rfl⟩; exact ⟨hp, q, hq, rfl⟩
-  rw [heq, Finset.sum_image hinj, ← Finset.sum_filter_add_sum_filter_not P.parts (· ⊓ b ≠ ⊥)]
   have hz : ∑ x ∈ P.parts.filter (¬ · ⊓ b ≠ ⊥), f (x ⊓ b) = 0 := Finset.sum_eq_zero fun x hx => by
     simp only [ne_eq, Decidable.not_not, Finset.mem_filter] at hx
     rw [hx.2, hf]
-  rw [hz, add_zero]
+  simp only [restrict, heq, ← Finset.sum_filter_add_sum_filter_not P.parts (· ⊓ b ≠ ⊥), hz,
+    Finset.sum_image hinj, add_zero]
 
 end Finpartition
 
-/-!
-### To be moved to MeasurableSpace/MeasurablyGenerated/?
--/
 
 variable {X : Type*} [MeasurableSpace X]
 
+-- To be moved to MeasurableSpace/MeasurablyGenerated/
 @[simp]
 lemma MeasurableSet.subtype_bot_eq :
     (⟨∅, .empty⟩ : Subtype (MeasurableSet (α := X))) = ⊥ := rfl
@@ -261,17 +257,17 @@ lemma mono {s₁ s₂ : Set X} (hs₂ : MeasurableSet s₂) (h : s₁ ⊆ s₂) 
       simp_all [preVariation]
   · simp [preVariation, hs₁]
 
-lemma exists_isSubpartition_sum_gt {s : Set X} (hs : MeasurableSet s) {a : ℝ≥0∞}
+lemma exists_Finpartition_sum_gt {s : Set X} (hs : MeasurableSet s) {a : ℝ≥0∞}
     (ha : a < preVariation f s) : ∃ P : Finpartition (⟨s, hs⟩ : Subtype MeasurableSet),
     a < ∑ p ∈ P.parts, f p := by
   simp_all [preVariation, lt_iSup_iff]
 
-lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNReal} (hε : 0 < ε)
+lemma exists_Finpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNReal} (hε : 0 < ε)
     (h : preVariation f s ≠ ⊤) :
     ∃ P : Finpartition (⟨s, hs⟩ : Subtype MeasurableSet),
     preVariation f s ≤ ∑ p ∈ P.parts, f p + ε := by
   let ε' := min ε (preVariation f s).toNNReal
-  have hε1 : ε' ≤ preVariation f s := by simp_all [ε']
+  have hε' : ε' ≤ preVariation f s := by simp_all [ε']
   have : ε' ≤ ε := by simp_all [ε']
   obtain hw | hw : preVariation f s ≠ 0 ∨ preVariation f s = 0 := ne_or_eq _ _
   · have : 0 < ε' := by
@@ -279,20 +275,21 @@ lemma exists_isSubpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNRe
       exact ⟨hε, toNNReal_pos hw h⟩
     let a := preVariation f s - ε'
     have ha : a < preVariation f s := ENNReal.sub_lt_self h hw (by positivity)
-    obtain ⟨P, hP⟩ := exists_isSubpartition_sum_gt f hs ha
+    obtain ⟨P, hP⟩ := exists_Finpartition_sum_gt f hs ha
     refine ⟨P, ?_⟩
     calc preVariation f s
-      _ = a + ε' := (tsub_add_cancel_of_le hε1).symm
+      _ = a + ε' := (tsub_add_cancel_of_le hε').symm
       _ ≤ ∑ p ∈ P.parts, f p + ε' := by
         exact (ENNReal.add_le_add_iff_right coe_ne_top).mpr (le_of_lt hP)
       _ ≤ ∑ p ∈ P.parts, f p + ε := by gcongr
   · simp [*]
 
+-- Does this belong somewhere?
 open Classical in
 /-- The sup of measurable set subtypes over a finset equals the biUnion of the underlying sets. -/
 lemma Finset.sup_measurableSetSubtype_eq_biUnion {ι : Type*}
-    (si : ι → Subtype (@MeasurableSet X _)) (I : Finset ι) :
-    ((I.sup si : Subtype MeasurableSet) : Set X) = ⋃ i ∈ I, (si i).val := by
+    (s : ι → Subtype (@MeasurableSet X _)) (I : Finset ι) :
+    ((I.sup s : Subtype MeasurableSet) : Set X) = ⋃ i ∈ I, (s i).val := by
   refine I.induction_on (by simp) ?_
   intro _ _ _ h
   simp [← h]
@@ -302,19 +299,19 @@ lemma sum_le_preVariation_iUnion' {s : ℕ → Set X} (hs : ∀ i, MeasurableSet
     (hs' : Pairwise (Disjoint on s))
     (P : ∀ (i : ℕ), Finpartition (⟨s i, hs i⟩ : Subtype MeasurableSet)) (n : ℕ) :
     ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p ≤ preVariation f (⋃ i, s i) := by
-  let si (i : ℕ) : Subtype MeasurableSet := ⟨s i, hs i⟩
-  have hs_disj : Set.PairwiseDisjoint (Finset.range n : Set ℕ) si := fun i _ j _ hij => by
+  let s' (i : ℕ) : Subtype MeasurableSet := ⟨s i, hs i⟩
+  have hs_disj : Set.PairwiseDisjoint (Finset.range n : Set ℕ) s' := fun i _ j _ hij => by
     simp only [Function.onFun, disjoint_iff, Subtype.ext_iff]
     exact Set.disjoint_iff_inter_eq_empty.mp (hs' hij)
   let Q := Finpartition.biUnion P hs_disj
-  have hQ_le : (Finset.range n).sup si ≤ ⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ := by
-    rw [← Subtype.coe_le_coe, Finset.sup_measurableSetSubtype_eq_biUnion si]
+  have hQ_le : (Finset.range n).sup s' ≤ ⟨⋃ i, s i, MeasurableSet.iUnion hs⟩ := by
+    rw [← Subtype.coe_le_coe, Finset.sup_measurableSetSubtype_eq_biUnion s']
     exact Set.iUnion₂_subset fun i _ => Set.subset_iUnion s i
   let R := Q.extendOfLE hQ_le
   calc ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p
-      _ = ∑ p ∈ Q.parts, f p := (Finpartition.sum_biUnion P hs_disj (fun p => f p)).symm
-      _ ≤ ∑ p ∈ R.parts, f p := Finset.sum_le_sum_of_subset (Q.parts_subset_extendOfLE hQ_le)
-      _ ≤ preVariation f (⋃ i, s i) := sum_le f (MeasurableSet.iUnion hs) R
+    _ = ∑ p ∈ Q.parts, f p := (Finpartition.sum_biUnion P hs_disj (fun p => f p)).symm
+    _ ≤ ∑ p ∈ R.parts, f p := Finset.sum_le_sum_of_subset (Q.parts_subset_extendOfLE hQ_le)
+    _ ≤ preVariation f (⋃ i, s i) := sum_le f (MeasurableSet.iUnion hs) R
 
 lemma sum_le_preVariation_iUnion {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s)) :
@@ -327,9 +324,9 @@ lemma sum_le_preVariation_iUnion {s : ℕ → Set X} (hs : ∀ i, MeasurableSet 
   have hε : 0 < ε := by positivity
   have hs'' i : preVariation f (s i) ≠ ⊤ := lt_top_iff_ne_top.mp <|
     (mono f (MeasurableSet.iUnion hs) (Set.subset_iUnion s i)).trans_lt hsnetop
-  -- For each set `s i` we choose a subpartition `P i` such that, for each `i`,
+  -- For each set `s i` we choose a Finpartition `P i` such that, for each `i`,
   -- `preVariation f (s i) ≤ ∑ p ∈ (P i), f p + ε`.
-  choose P hP using fun i ↦ exists_isSubpartition_sum_ge f (hs i) (hε) (hs'' i)
+  choose P hP using fun i ↦ exists_Finpartition_sum_ge f (hs i) (hε) (hs'' i)
   calc ∑ i ∈ Finset.range n, preVariation f (s i)
     _ ≤ ∑ i ∈ Finset.range n, (∑ p ∈ (P i).parts, f p + ε) := Finset.sum_le_sum fun i _ => hP i
     _ = ∑ i ∈ Finset.range n, ∑ p ∈ (P i).parts, f p + ε' := by
@@ -337,11 +334,15 @@ lemma sum_le_preVariation_iUnion {s : ℕ → Set X} (hs : ∀ i, MeasurableSet 
       simp [show n * ε = ε' by rw [mul_div_cancel₀ _ (by positivity)]]
     _ ≤ preVariation f (⋃ i, s i) + ε' := by gcongr; exact sum_le_preVariation_iUnion' f hs hs' P n
 
+-- Perhaps this should be called `IsCountablySubadditiveOnDisjoint`?
+-- Or is this a common notion that belongs somewhere else?
+-- Mathlib has `AddContent.IsSigmaSubadditive` but we don't have an `AddContent` here with `‖μ ·‖ₑ`.
 /-- A set function is subadditive if the value assigned to the union of disjoint sets is bounded
 above by the sum of the values assigned to the individual sets. -/
 def IsSubadditive (f : Set X → ℝ≥0∞) : Prop := ∀ (s : ℕ → Set X), (∀ i, MeasurableSet (s i)) →
   Pairwise (Disjoint on s) → f (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), f (s i)
 
+-- This is very convenient here. Perhaps also elsewhere and so belongs somewhere else?
 lemma sum_le_tsum' {f : ℕ → ℝ≥0∞} {a : ℝ≥0∞}
     (h : ∀ b < a, ∃ n, b < ∑ i ∈ Finset.range n, f i) : a ≤ ∑' i, f i := by
   refine le_of_forall_lt fun b hb ↦ ?_
@@ -365,7 +366,8 @@ lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
             rw [← Set.inter_iUnion]; exact (Set.inter_eq_left.mpr (Q.le hq)).symm
           have hq_disj : Pairwise (Disjoint on fun i => q.val ∩ s i) :=
             fun i j hij => (hs' hij).mono Set.inter_subset_right Set.inter_subset_right
-          calc f q = f (⋃ i, q.val ∩ s i) := congrArg f hq_eq
+          calc f q
+            _ = f (⋃ i, q.val ∩ s i) := congrArg f hq_eq
             _ ≤ ∑' i, f (q.val ∩ s i) := hf _ (q.2.inter <| hs ·) hq_disj
             _ = ∑' i, f (q ⊓ s' i) := rfl
       _ = ∑' i, ∑ q ∈ Q.parts, f (q ⊓ s' i) :=
