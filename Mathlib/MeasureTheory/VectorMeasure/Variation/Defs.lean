@@ -148,8 +148,8 @@ def restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq α]
       Set.mem_singleton_iff] at hx hy
     obtain ⟨⟨px, hpx, rfl⟩, _⟩ := hx
     obtain ⟨⟨py, hpy, rfl⟩, _⟩ := hy
-    simp only [Function.onFun, id_eq]
-    exact (P.disjoint hpx hpy fun h => hxy (h ▸ rfl)).mono inf_le_left inf_le_left
+    simpa [Function.onFun, id_eq]
+      using (P.disjoint hpx hpy fun h => hxy (h ▸ rfl)).mono inf_le_left inf_le_left
   sup_parts := by
     simp only [Finset.sup_erase_bot, Finset.sup_image, Function.id_comp,
       (Finset.sup_inf_distrib_right ..).symm]
@@ -230,31 +230,30 @@ lemma sum_le {s : Set X} (hs : MeasurableSet s)
   simpa [preVariation, hs, le_iSup_iff] using fun _ a ↦ a P
 
 open Classical in
-/-- If `P` is a partition of `s₁` and `s₁ ⊊ s₂` then `∑ p ∈ P.parts, f p ≤ preVariation f s₂`. -/
-lemma sum_le_preVariation_of_subset_ne {s₁ s₂ : Set X} (hs₁ : MeasurableSet s₁)
-    (hs₂ : MeasurableSet s₂) (h : s₁ ⊆ s₂) (h_ne : s₁ ≠ s₂)
-    (P : Finpartition (⟨s₁, hs₁⟩ : Subtype MeasurableSet)) :
+/-- If `P` is a partition of `s₁` and `s₁ ⊆ s₂` then `∑ p ∈ P.parts, f p ≤ preVariation f s₂`. -/
+lemma sum_le_preVariation_of_subset {s₁ s₂ : Set X} (hs₁ : MeasurableSet s₁)
+    (hs₂ : MeasurableSet s₂) (h : s₁ ⊆ s₂) (P : Finpartition (⟨s₁, hs₁⟩ : Subtype MeasurableSet)) :
     ∑ p ∈ P.parts, f p ≤ preVariation f s₂ := by
-  let b : Subtype MeasurableSet := ⟨s₂ \ s₁, hs₂.diff hs₁⟩
-  have hb : b ≠ ⊥ := fun hc => h_ne (h.antisymm (Set.diff_eq_empty.mp (congrArg (·.1) hc)))
-  have hab : Disjoint (⟨s₁, hs₁⟩ : Subtype MeasurableSet) b := by
-    simp only [b, disjoint_iff, Subtype.ext_iff]
-    exact Set.inter_diff_self s₁ s₂
-  have hc : (⟨s₁, hs₁⟩ : Subtype MeasurableSet) ⊔ b = ⟨s₂, hs₂⟩ :=
-    Subtype.ext (Set.union_diff_cancel h)
-  calc ∑ p ∈ P.parts, f p
-    _ ≤ ∑ p ∈ (P.extend hb hab hc).parts, f p :=
-        Finset.sum_le_sum_of_subset fun _ hx => Finset.mem_insert_of_mem hx
-    _ ≤ preVariation f s₂ := sum_le f hs₂ _
+  by_cases heq : s₁ = s₂
+  · rw [← heq]; exact sum_le f hs₁ P
+  · let b : Subtype MeasurableSet := ⟨s₂ \ s₁, hs₂.diff hs₁⟩
+    have hb : b ≠ ⊥ := fun hc => heq (h.antisymm (Set.diff_eq_empty.mp (congrArg (·.1) hc)))
+    have hab : Disjoint (⟨s₁, hs₁⟩ : Subtype MeasurableSet) b := by
+      simp only [b, disjoint_iff, Subtype.ext_iff]
+      exact Set.inter_diff_self s₁ s₂
+    have hc : (⟨s₁, hs₁⟩ : Subtype MeasurableSet) ⊔ b = ⟨s₂, hs₂⟩ :=
+      Subtype.ext (Set.union_diff_cancel h)
+    calc ∑ p ∈ P.parts, f p
+      _ ≤ ∑ p ∈ (P.extend hb hab hc).parts, f p :=
+          Finset.sum_le_sum_of_subset fun _ hx => Finset.mem_insert_of_mem hx
+      _ ≤ preVariation f s₂ := sum_le f hs₂ _
 
 /-- `preVariation` is monotone in terms of the (measurable) set. -/
 lemma mono {s₁ s₂ : Set X} (hs₂ : MeasurableSet s₂) (h : s₁ ⊆ s₂) :
     preVariation f s₁ ≤ preVariation f s₂ := by
   by_cases hs₁ : MeasurableSet s₁
-  · by_cases hne : s₁ = s₂
-    · simp_all
-    · have := sum_le_preVariation_of_subset_ne f hs₁ hs₂ h hne
-      simp_all [preVariation]
+  · have := sum_le_preVariation_of_subset f hs₁ hs₂ h
+    simp_all [preVariation]
   · simp [preVariation, hs₁]
 
 lemma exists_Finpartition_sum_gt {s : Set X} (hs : MeasurableSet s) {a : ℝ≥0∞}
@@ -276,7 +275,7 @@ lemma exists_Finpartition_sum_ge {s : Set X} (hs : MeasurableSet s) {ε : NNReal
     let a := preVariation f s - ε'
     have ha : a < preVariation f s := ENNReal.sub_lt_self h hw (by positivity)
     obtain ⟨P, hP⟩ := exists_Finpartition_sum_gt f hs ha
-    refine ⟨P, ?_⟩
+    use P
     calc preVariation f s
       _ = a + ε' := (tsub_add_cancel_of_le hε').symm
       _ ≤ ∑ p ∈ P.parts, f p + ε' := by
@@ -379,7 +378,7 @@ lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
   have bound (i : ℕ) : ∑ p ∈ (P i).parts, f p ≤ preVariation f (s i) := sum_le f (hs i) (P i)
   exact ⟨n, lt_of_lt_of_le hn (Finset.sum_le_sum fun i _ => bound i)⟩
 
-/-- Additivity of `variation_aux` for disjoint measurable sets. -/
+/-- Additivity of `preVariation` for disjoint measurable sets. -/
 lemma iUnion (hf : IsSubadditive f) (hf' : f ∅ = 0) (s : ℕ → Set X)
     (hs : ∀ i, MeasurableSet (s i)) (hs' : Pairwise (Disjoint on s)) :
     HasSum (fun i ↦ preVariation f (s i)) (preVariation f (⋃ i, s i)) := by
