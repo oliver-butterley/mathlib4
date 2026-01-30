@@ -183,6 +183,19 @@ lemma sum_restrict {α : Type*} [DistribLattice α] [OrderBot α] [DecidableEq �
 
 end Finpartition
 
+section
+
+open ENNReal
+
+-- Move to Mathlib.Topology.Algebra.InfiniteSum.ENNReal
+lemma le_tsum_of_forall_exist_lt_sum {ι : Type} {f : ι → ℝ≥0∞} {a : ℝ≥0∞}
+    (h : ∀ b < a, ∃ I : Finset ι, b < ∑ i ∈ I, f i) : a ≤ ∑' i, f i := by
+  refine le_of_forall_lt fun b hb ↦ ?_
+  obtain ⟨I, hI⟩ := h b hb
+  exact lt_of_lt_of_le hI (ENNReal.sum_le_tsum I)
+
+end
+
 
 variable {X : Type*} [MeasurableSpace X]
 
@@ -340,13 +353,6 @@ lemma sum_le_preVariation_iUnion {s : ℕ → Set X} (hs : ∀ i, MeasurableSet 
 above by the sum of the values assigned to the individual sets. -/
 def IsSubadditive (f : Set X → ℝ≥0∞) : Prop := ∀ (s : ℕ → Set X), (∀ i, MeasurableSet (s i)) →
   Pairwise (Disjoint on s) → f (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), f (s i)
-
--- This is very convenient here. Perhaps also elsewhere and so belongs somewhere else?
-lemma le_tsum_of_forall_exist_lt_sum {ι : Type} {f : ι → ℝ≥0∞} {a : ℝ≥0∞}
-    (h : ∀ b < a, ∃ I : Finset ι, b < ∑ i ∈ I, f i) : a ≤ ∑' i, f i := by
-  refine le_of_forall_lt fun b hb ↦ ?_
-  obtain ⟨I, hI⟩ := h b hb
-  exact lt_of_lt_of_le hI (ENNReal.sum_le_tsum I)
 
 open Classical in
 lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
