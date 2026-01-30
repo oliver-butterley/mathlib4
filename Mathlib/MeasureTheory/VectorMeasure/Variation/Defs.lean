@@ -342,17 +342,17 @@ def IsSubadditive (f : Set X → ℝ≥0∞) : Prop := ∀ (s : ℕ → Set X), 
   Pairwise (Disjoint on s) → f (⋃ (i : ℕ), s i) ≤ ∑' (i : ℕ), f (s i)
 
 -- This is very convenient here. Perhaps also elsewhere and so belongs somewhere else?
-lemma sum_le_tsum' {f : ℕ → ℝ≥0∞} {a : ℝ≥0∞}
-    (h : ∀ b < a, ∃ n, b < ∑ i ∈ Finset.range n, f i) : a ≤ ∑' i, f i := by
+lemma le_tsum_of_forall_exist_lt_sum {ι : Type} {f : ι → ℝ≥0∞} {a : ℝ≥0∞}
+    (h : ∀ b < a, ∃ I : Finset ι, b < ∑ i ∈ I, f i) : a ≤ ∑' i, f i := by
   refine le_of_forall_lt fun b hb ↦ ?_
-  obtain ⟨n, hn⟩ := h b hb
-  exact lt_of_lt_of_le hn (ENNReal.sum_le_tsum <| Finset.range n)
+  obtain ⟨I, hI⟩ := h b hb
+  exact lt_of_lt_of_le hI (ENNReal.sum_le_tsum I)
 
 open Classical in
 lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
     (hs' : Pairwise (Disjoint on s)) (hf : IsSubadditive f) (hf' : f ∅ = 0) :
     preVariation f (⋃ i, s i) ≤ ∑' i, preVariation f (s i) := by
-  refine sum_le_tsum' fun b hb ↦ ?_
+  refine le_tsum_of_forall_exist_lt_sum fun b hb ↦ ?_
   simp only [preVariation, MeasurableSet.iUnion hs, reduceDIte, lt_iSup_iff] at hb
   obtain ⟨Q, hQ⟩ := hb
   let s' (i : ℕ) : Subtype MeasurableSet := ⟨s i, hs i⟩
@@ -376,7 +376,7 @@ lemma iUnion_le {s : ℕ → Set X} (hs : ∀ i, MeasurableSet (s i))
           exact (Q.sum_restrict _ (fun p => f p) hf').symm
   obtain ⟨n, hn⟩ := lt_iSup_iff.mp <| ENNReal.tsum_eq_iSup_nat ▸ lt_of_lt_of_le hQ splitting
   have bound (i : ℕ) : ∑ p ∈ (P i).parts, f p ≤ preVariation f (s i) := sum_le f (hs i) (P i)
-  exact ⟨n, lt_of_lt_of_le hn (Finset.sum_le_sum fun i _ => bound i)⟩
+  exact ⟨Finset.range n, lt_of_lt_of_le hn (Finset.sum_le_sum fun i _ => bound i)⟩
 
 /-- Additivity of `preVariation` for disjoint measurable sets. -/
 lemma iUnion (hf : IsSubadditive f) (hf' : f ∅ = 0) (s : ℕ → Set X)
